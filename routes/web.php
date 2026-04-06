@@ -21,6 +21,9 @@ Route::post('/s_login', [SLoginController::class, 'store'])->name('s_login.store
 Route::post('/s_logout', [SLoginController::class, 'destroy'])->middleware('auth')->name('s_logout');
 
 Route::middleware(['auth', 'role:1'])->prefix('dev')->name('dev.')->group(function () {
+    Route::post('/categories', [RoleDashboardController::class, 'storeDevCategory'])->name('categories.store');
+    Route::put('/categories/{category}', [RoleDashboardController::class, 'updateDevCategory'])->name('categories.update');
+    Route::delete('/categories/{category}', [RoleDashboardController::class, 'deleteDevCategory'])->name('categories.delete');
     Route::get('/{page}', [RoleDashboardController::class, 'showDev'])
         ->where('page', 'home|categories|pumps|tanks|price')
         ->name('show');
