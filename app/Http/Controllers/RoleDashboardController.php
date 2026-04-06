@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Price;
 use App\Models\Tank;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -122,18 +123,36 @@ class RoleDashboardController extends Controller
             ->with('status', 'Tank deleted successfully.');
     }
 
+    public function saveDevPrices(Request $request): RedirectResponse
+    {
+        return $this->saveRolePrices($request, 'dev');
+    }
+
+    public function saveAdminPrices(Request $request): RedirectResponse
+    {
+        return $this->saveRolePrices($request, 'admin');
+    }
+
     protected function renderPage(string $navPrefix, string $heading, string $page): View
     {
         abort_unless(array_key_exists($page, self::SECTION_TITLES), 404);
 
         $categories = null;
-        if ($navPrefix === 'dev' && in_array($page, ['categories', 'tanks'], true)) {
+        if (
+            ($navPrefix === 'dev' && in_array($page, ['categories', 'tanks', 'price'], true)) ||
+            ($navPrefix === 'admin' && $page === 'price')
+        ) {
             $categories = Category::query()->orderBy('id')->get();
         }
 
         $tanks = null;
         if ($navPrefix === 'dev' && $page === 'tanks') {
             $tanks = Tank::query()->orderBy('id')->get();
+        }
+
+        $prices = null;
+        if (in_array($navPrefix, ['dev', 'admin'], true) && $page === 'price') {
+            $prices = Price::query()->pluck('price', 'category_id');
         }
 
         return view('dashboard.page', [
@@ -143,6 +162,37 @@ class RoleDashboardController extends Controller
             'sectionTitle' => self::SECTION_TITLES[$page],
             'categories' => $categories,
             'tanks' => $tanks,
+            'prices' => $prices,
         ]);
+    }
+
+    private function saveRolePrices(Request $request, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'prices' => ['required', 'array'],
+            'prices.*' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $categoryIds = Category::query()->pluck('id')->all();
+        $inputPrices = $validated['prices'] ?? [];
+
+        foreach ($categoryIds as $categoryId) {
+            $value = $inputPrices[$categoryId] ?? null;
+
+            if ($value === null || $value === '') {
+                Price::query()->where('category_id', $categoryId)->delete();
+
+                continue;
+            }
+
+            Price::query()->updateOrCreate(
+                ['category_id' => $categoryId],
+                ['price' => $value]
+            );
+        }
+
+        return redirect()
+            ->route($rolePrefix.'.show', ['page' => 'price'])
+            ->with('status', 'Prices saved successfully.');
     }
 }

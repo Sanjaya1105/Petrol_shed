@@ -27,12 +27,14 @@ Route::middleware(['auth', 'role:1'])->prefix('dev')->name('dev.')->group(functi
     Route::post('/tanks', [RoleDashboardController::class, 'storeDevTank'])->name('tanks.store');
     Route::put('/tanks/{tank}', [RoleDashboardController::class, 'updateDevTank'])->name('tanks.update');
     Route::delete('/tanks/{tank}', [RoleDashboardController::class, 'deleteDevTank'])->name('tanks.delete');
+    Route::post('/prices', [RoleDashboardController::class, 'saveDevPrices'])->name('prices.save');
     Route::get('/{page}', [RoleDashboardController::class, 'showDev'])
         ->where('page', 'home|categories|pumps|tanks|price')
         ->name('show');
 });
 
 Route::middleware(['auth', 'role:2'])->prefix('admin')->name('admin.')->group(function () {
+    Route::post('/prices', [RoleDashboardController::class, 'saveAdminPrices'])->name('prices.save');
     Route::get('/{page}', [RoleDashboardController::class, 'showAdmin'])
         ->where('page', 'home|categories|pumps|tanks|price')
         ->name('show');
