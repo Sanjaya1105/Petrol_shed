@@ -38,8 +38,10 @@ Route::middleware(['auth', 'role:1'])->prefix('dev')->name('dev.')->group(functi
 
 Route::middleware(['auth', 'role:2'])->prefix('admin')->name('admin.')->group(function () {
     Route::post('/prices', [RoleDashboardController::class, 'saveAdminPrices'])->name('prices.save');
+    Route::post('/staff', [RoleDashboardController::class, 'storeAdminStaff'])->name('staff.store');
+    Route::delete('/staff/{staff}', [RoleDashboardController::class, 'deleteAdminStaff'])->name('staff.delete');
     Route::get('/{page}', [RoleDashboardController::class, 'showAdmin'])
-        ->where('page', 'home|categories|pumps|tanks|price')
+        ->where('page', 'home|categories|pumps|tanks|price|staff')
         ->name('show');
 });
 

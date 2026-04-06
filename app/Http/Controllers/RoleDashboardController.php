@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Price;
 use App\Models\Pump;
+use App\Models\Staff;
 use App\Models\Tank;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ class RoleDashboardController extends Controller
         'pumps' => 'Pumps',
         'tanks' => 'Tanks',
         'price' => 'Price',
+        'staff' => 'Staff',
     ];
 
     public function showDev(string $page): View
@@ -29,6 +31,8 @@ class RoleDashboardController extends Controller
 
     public function showAdmin(string $page): View
     {
+        abort_unless(in_array($page, ['home', 'categories', 'pumps', 'tanks', 'price', 'staff'], true), 404);
+
         return $this->renderPage('admin', 'Admin', $page);
     }
 
@@ -194,6 +198,30 @@ class RoleDashboardController extends Controller
         return $this->saveRolePrices($request, 'admin');
     }
 
+    public function storeAdminStaff(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        Staff::query()->create([
+            'name' => $validated['name'],
+        ]);
+
+        return redirect()
+            ->route('admin.show', ['page' => 'staff'])
+            ->with('status', 'Staff added successfully.');
+    }
+
+    public function deleteAdminStaff(Staff $staff): RedirectResponse
+    {
+        $staff->delete();
+
+        return redirect()
+            ->route('admin.show', ['page' => 'staff'])
+            ->with('status', 'Staff deleted successfully.');
+    }
+
     protected function renderPage(string $navPrefix, string $heading, string $page): View
     {
         abort_unless(array_key_exists($page, self::SECTION_TITLES), 404);
@@ -217,8 +245,13 @@ class RoleDashboardController extends Controller
         }
 
         $pumps = null;
-        if ($navPrefix === 'dev' && $page === 'pumps') {
+        if (in_array($navPrefix, ['dev', 'admin'], true) && $page === 'pumps') {
             $pumps = Pump::query()->orderBy('id')->get();
+        }
+
+        $staffMembers = null;
+        if ($navPrefix === 'admin' && $page === 'staff') {
+            $staffMembers = Staff::query()->orderBy('id')->get();
         }
 
         return view('dashboard.page', [
@@ -230,6 +263,7 @@ class RoleDashboardController extends Controller
             'tanks' => $tanks,
             'prices' => $prices,
             'pumps' => $pumps,
+            'staffMembers' => $staffMembers,
         ]);
     }
 

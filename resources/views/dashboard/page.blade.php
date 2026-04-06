@@ -358,6 +358,21 @@
                     if (overlay) overlay.addEventListener('click', closeModal);
                 })();
             </script>
+        @elseif ($navPrefix === 'admin' && $page === 'pumps')
+            <div class="bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                <h3 class="text-sm font-semibold mb-3">Available pumps</h3>
+                @if ($pumps !== null && $pumps->isNotEmpty())
+                    <ul class="space-y-2">
+                        @foreach ($pumps as $pump)
+                            <li class="border border-gray-200 dark:border-gray-700 rounded-md px-3 py-2 text-sm">
+                                {{ $pump->pump_name }}
+                            </li>
+                        @endforeach
+                    </ul>
+                @else
+                    <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No pumps added yet.</p>
+                @endif
+            </div>
         @elseif ($navPrefix === 'dev' && $page === 'tanks')
             <form method="post" action="{{ route('dev.tanks.store') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
                 @csrf
@@ -483,6 +498,47 @@
                     </div>
                 @else
                     <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No tanks added yet.</p>
+                @endif
+            </div>
+        @elseif ($navPrefix === 'admin' && $page === 'staff')
+            <form method="post" action="{{ route('admin.staff.store') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                @csrf
+                <div>
+                    <label for="staff_name" class="block text-sm font-medium mb-1">Add staff</label>
+                    <input
+                        type="text"
+                        name="name"
+                        id="staff_name"
+                        value="{{ old('name') }}"
+                        required
+                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    >
+                    @error('name')
+                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                    @enderror
+                </div>
+                <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                    Save
+                </button>
+            </form>
+
+            <div class="mt-6 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                <h3 class="text-sm font-semibold mb-3">Added staff</h3>
+                @if ($staffMembers !== null && $staffMembers->isNotEmpty())
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                        @foreach ($staffMembers as $staff)
+                            <div class="h-14 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 flex items-center justify-between gap-2">
+                                <p class="text-sm truncate">{{ $staff->name }}</p>
+                                <form method="post" action="{{ route('admin.staff.delete', $staff) }}" onsubmit="return confirm('Delete this staff member?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-red-700 dark:text-red-400 text-sm leading-none px-1">X</button>
+                                </form>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No staff added yet.</p>
                 @endif
             </div>
         @elseif (in_array($navPrefix, ['dev', 'admin'], true) && $page === 'price')
