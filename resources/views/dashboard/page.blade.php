@@ -3,7 +3,7 @@
 @section('title', $sectionTitle.' — '.$heading.' — '.config('app.name'))
 
 @section('content')
-    <div class="max-w-3xl">
+    <div class="max-w-3xl w-full">
         <h2 class="text-lg font-medium text-[#706f6c] dark:text-[#A1A09A] mb-2">{{ $sectionTitle }}</h2>
         <p class="text-sm text-[#706f6c] dark:text-[#A1A09A] mb-4">
             Signed in as {{ auth()->user()->name }} ({{ auth()->user()->username }}).
@@ -14,7 +14,7 @@
         @endif
 
         @if ($navPrefix === 'dev' && $page === 'categories')
-            <form method="post" action="{{ route('dev.categories.store') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+            <form method="post" action="{{ route('dev.categories.store') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
                 @csrf
                 <div>
                     <label for="category" class="block text-sm font-medium mb-1">Category</label>
@@ -35,14 +35,14 @@
                 </button>
             </form>
 
-            <div class="mt-6 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+            <div class="mt-6 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
                 <h3 class="text-sm font-semibold mb-3">Available categories</h3>
 
                 @if ($categories !== null && $categories->isNotEmpty())
                     <div class="space-y-3">
                         @foreach ($categories as $item)
                             <div class="border border-gray-200 dark:border-gray-700 rounded-md p-3">
-                                <form method="post" action="{{ route('dev.categories.update', $item) }}" class="flex gap-2 items-start">
+                                <form method="post" action="{{ route('dev.categories.update', $item) }}" class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-start">
                                     @csrf
                                     @method('PUT')
                                     <input
@@ -52,14 +52,14 @@
                                         required
                                         class="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                     >
-                                    <button type="submit" class="rounded-md bg-blue-600 text-white px-3 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                                    <button type="submit" class="rounded-md bg-blue-600 text-white px-3 py-2 text-sm font-medium hover:opacity-90 transition-opacity w-full sm:w-auto">
                                         Update
                                     </button>
                                 </form>
                                 <form method="post" action="{{ route('dev.categories.delete', $item) }}" class="mt-2">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="rounded-md bg-red-700 hover:bg-red-800 text-white px-3 py-2 text-sm font-medium transition-colors">
+                                    <button type="submit" class="rounded-md bg-red-700 hover:bg-red-800 text-white px-3 py-2 text-sm font-medium transition-colors w-full sm:w-auto">
                                         Delete
                                     </button>
                                 </form>
