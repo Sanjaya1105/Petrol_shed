@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Price;
+use App\Models\Pump;
 use App\Models\Tank;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class RoleDashboardController extends Controller
@@ -123,6 +125,65 @@ class RoleDashboardController extends Controller
             ->with('status', 'Tank deleted successfully.');
     }
 
+    public function storeDevPump(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'pump_name' => ['required', 'string', 'max:255'],
+            'category_id' => ['required', 'integer', 'exists:category,id'],
+            'tank_id' => [
+                'required',
+                'integer',
+                Rule::exists('tanks', 'id')->where(function ($query) use ($request) {
+                    $query->where('category_id', $request->input('category_id'));
+                }),
+            ],
+        ]);
+
+        Pump::query()->create([
+            'pump_name' => $validated['pump_name'],
+            'category_id' => $validated['category_id'],
+            'tank_id' => $validated['tank_id'],
+        ]);
+
+        return redirect()
+            ->route('dev.show', ['page' => 'pumps'])
+            ->with('status', 'Pump saved successfully.');
+    }
+
+    public function updateDevPump(Request $request, Pump $pump): RedirectResponse
+    {
+        $validated = $request->validate([
+            'pump_name' => ['required', 'string', 'max:255'],
+            'category_id' => ['required', 'integer', 'exists:category,id'],
+            'tank_id' => [
+                'required',
+                'integer',
+                Rule::exists('tanks', 'id')->where(function ($query) use ($request) {
+                    $query->where('category_id', $request->input('category_id'));
+                }),
+            ],
+        ]);
+
+        $pump->update([
+            'pump_name' => $validated['pump_name'],
+            'category_id' => $validated['category_id'],
+            'tank_id' => $validated['tank_id'],
+        ]);
+
+        return redirect()
+            ->route('dev.show', ['page' => 'pumps'])
+            ->with('status', 'Pump updated successfully.');
+    }
+
+    public function deleteDevPump(Pump $pump): RedirectResponse
+    {
+        $pump->delete();
+
+        return redirect()
+            ->route('dev.show', ['page' => 'pumps'])
+            ->with('status', 'Pump deleted successfully.');
+    }
+
     public function saveDevPrices(Request $request): RedirectResponse
     {
         return $this->saveRolePrices($request, 'dev');
@@ -139,20 +200,25 @@ class RoleDashboardController extends Controller
 
         $categories = null;
         if (
-            ($navPrefix === 'dev' && in_array($page, ['categories', 'tanks', 'price'], true)) ||
+            ($navPrefix === 'dev' && in_array($page, ['categories', 'tanks', 'pumps', 'price'], true)) ||
             ($navPrefix === 'admin' && $page === 'price')
         ) {
             $categories = Category::query()->orderBy('id')->get();
         }
 
         $tanks = null;
-        if ($navPrefix === 'dev' && $page === 'tanks') {
+        if ($navPrefix === 'dev' && in_array($page, ['tanks', 'pumps'], true)) {
             $tanks = Tank::query()->orderBy('id')->get();
         }
 
         $prices = null;
         if (in_array($navPrefix, ['dev', 'admin'], true) && $page === 'price') {
             $prices = Price::query()->pluck('price', 'category_id');
+        }
+
+        $pumps = null;
+        if ($navPrefix === 'dev' && $page === 'pumps') {
+            $pumps = Pump::query()->orderBy('id')->get();
         }
 
         return view('dashboard.page', [
@@ -163,6 +229,7 @@ class RoleDashboardController extends Controller
             'categories' => $categories,
             'tanks' => $tanks,
             'prices' => $prices,
+            'pumps' => $pumps,
         ]);
     }
 

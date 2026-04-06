@@ -70,6 +70,261 @@
                     <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No categories added yet.</p>
                 @endif
             </div>
+        @elseif ($navPrefix === 'dev' && $page === 'pumps')
+            <form method="post" action="{{ route('dev.pumps.store') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                @csrf
+                <div>
+                    <label for="pump_name" class="block text-sm font-medium mb-1">Pump name</label>
+                    <input
+                        type="text"
+                        name="pump_name"
+                        id="pump_name"
+                        value="{{ old('pump_name') }}"
+                        required
+                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    >
+                    @error('pump_name')
+                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div>
+                    <label for="pump_category_id" class="block text-sm font-medium mb-1">Category</label>
+                    <select
+                        name="category_id"
+                        id="pump_category_id"
+                        required
+                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    >
+                        <option value="" selected disabled>Select category</option>
+                        @if ($categories !== null)
+                            @foreach ($categories as $categoryOption)
+                                <option value="{{ $categoryOption->id }}" {{ (string) old('category_id') === (string) $categoryOption->id ? 'selected' : '' }}>
+                                    {{ $categoryOption->category }}
+                                </option>
+                            @endforeach
+                        @endif
+                    </select>
+                    @error('category_id')
+                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div>
+                    <label for="pump_tank_id" class="block text-sm font-medium mb-1">Tank</label>
+                    <select
+                        name="tank_id"
+                        id="pump_tank_id"
+                        required
+                        disabled
+                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        <option value="" selected disabled>Select tank</option>
+                        @if ($tanks !== null)
+                            @foreach ($tanks as $tankOption)
+                                <option
+                                    value="{{ $tankOption->id }}"
+                                    data-category-id="{{ $tankOption->category_id }}"
+                                    {{ (string) old('tank_id') === (string) $tankOption->id ? 'selected' : '' }}
+                                >
+                                    {{ $tankOption->tank_name }}
+                                </option>
+                            @endforeach
+                        @endif
+                    </select>
+                    @error('tank_id')
+                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                    @enderror
+                </div>
+                <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                    Submit
+                </button>
+            </form>
+
+            <div class="mt-6 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                <h3 class="text-sm font-semibold mb-3">Available pumps</h3>
+                @if ($pumps !== null && $pumps->isNotEmpty())
+                    <div class="space-y-2">
+                        @foreach ($pumps as $pump)
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                                <p class="text-sm font-medium">{{ $pump->pump_name }}</p>
+                                <div class="flex gap-2">
+                                    <button
+                                        type="button"
+                                        class="rounded-md bg-blue-600 text-white px-3 py-2 text-sm font-medium hover:opacity-90 transition-opacity js-open-pump-modal"
+                                        data-pump-id="{{ $pump->id }}"
+                                        data-pump-name="{{ $pump->pump_name }}"
+                                        data-category-id="{{ $pump->category_id }}"
+                                        data-tank-id="{{ $pump->tank_id }}"
+                                    >
+                                        Update
+                                    </button>
+                                    <form method="post" action="{{ route('dev.pumps.delete', $pump) }}" onsubmit="return confirm('Are you sure you want to delete this pump?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="rounded-md bg-red-700 hover:bg-red-800 text-white px-3 py-2 text-sm font-medium transition-colors">
+                                            Delete
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No pumps added yet.</p>
+                @endif
+            </div>
+
+            <div id="pump-modal" class="fixed inset-0 z-50 hidden">
+                <div class="absolute inset-0 bg-black/50" id="pump-modal-overlay"></div>
+                <div class="absolute inset-0 flex items-center justify-center p-4">
+                    <div class="w-full max-w-md bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-base font-semibold">Update pump</h3>
+                            <button type="button" id="pump-modal-close" class="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm">X</button>
+                        </div>
+                        <form method="post" id="pump-update-form" class="space-y-3">
+                            @csrf
+                            @method('PUT')
+                            <div>
+                                <label for="modal_pump_name" class="block text-sm font-medium mb-1">Pump name</label>
+                                <input type="text" name="pump_name" id="modal_pump_name" required class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label for="modal_pump_category_id" class="block text-sm font-medium mb-1">Category</label>
+                                <select name="category_id" id="modal_pump_category_id" required class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                                    <option value="" disabled>Select category</option>
+                                    @if ($categories !== null)
+                                        @foreach ($categories as $categoryOption)
+                                            <option value="{{ $categoryOption->id }}">{{ $categoryOption->category }}</option>
+                                        @endforeach
+                                    @endif
+                                </select>
+                            </div>
+                            <div>
+                                <label for="modal_pump_tank_id" class="block text-sm font-medium mb-1">Tank</label>
+                                <select name="tank_id" id="modal_pump_tank_id" required disabled class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none disabled:opacity-60 disabled:cursor-not-allowed">
+                                    <option value="" disabled selected>Select tank</option>
+                                    @if ($tanks !== null)
+                                        @foreach ($tanks as $tankOption)
+                                            <option value="{{ $tankOption->id }}" data-category-id="{{ $tankOption->category_id }}">
+                                                {{ $tankOption->tank_name }}
+                                            </option>
+                                        @endforeach
+                                    @endif
+                                </select>
+                            </div>
+                            <button type="submit" class="rounded-md bg-blue-600 text-white px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                                Save update
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                (function () {
+                    const categorySelect = document.getElementById('pump_category_id');
+                    const tankSelect = document.getElementById('pump_tank_id');
+                    if (!categorySelect || !tankSelect) return;
+
+                    const filterTanks = () => {
+                        const selectedCategoryId = categorySelect.value;
+                        const tankOptions = Array.from(tankSelect.querySelectorAll('option[data-category-id]'));
+
+                        if (!selectedCategoryId) {
+                            tankSelect.value = '';
+                            tankSelect.disabled = true;
+                            tankOptions.forEach((option) => {
+                                option.hidden = true;
+                            });
+                            return;
+                        }
+
+                        tankSelect.disabled = false;
+                        let hasSelectedVisible = false;
+                        tankOptions.forEach((option) => {
+                            const isMatch = option.dataset.categoryId === selectedCategoryId;
+                            option.hidden = !isMatch;
+                            if (option.selected && isMatch) {
+                                hasSelectedVisible = true;
+                            }
+                        });
+
+                        if (!hasSelectedVisible) {
+                            tankSelect.value = '';
+                        }
+                    };
+
+                    categorySelect.addEventListener('change', filterTanks);
+                    filterTanks();
+                })();
+            </script>
+            <script>
+                (function () {
+                    const modal = document.getElementById('pump-modal');
+                    const openButtons = document.querySelectorAll('.js-open-pump-modal');
+                    const closeBtn = document.getElementById('pump-modal-close');
+                    const overlay = document.getElementById('pump-modal-overlay');
+                    const form = document.getElementById('pump-update-form');
+                    const nameInput = document.getElementById('modal_pump_name');
+                    const categorySelect = document.getElementById('modal_pump_category_id');
+                    const tankSelect = document.getElementById('modal_pump_tank_id');
+
+                    if (!modal || !form || !nameInput || !categorySelect || !tankSelect) return;
+
+                    const filterModalTanks = () => {
+                        const selectedCategoryId = categorySelect.value;
+                        const tankOptions = Array.from(tankSelect.querySelectorAll('option[data-category-id]'));
+
+                        if (!selectedCategoryId) {
+                            tankSelect.value = '';
+                            tankSelect.disabled = true;
+                            tankOptions.forEach((option) => {
+                                option.hidden = true;
+                            });
+                            return;
+                        }
+
+                        tankSelect.disabled = false;
+                        let hasSelectedVisible = false;
+                        tankOptions.forEach((option) => {
+                            const isMatch = option.dataset.categoryId === selectedCategoryId;
+                            option.hidden = !isMatch;
+                            if (option.selected && isMatch) {
+                                hasSelectedVisible = true;
+                            }
+                        });
+
+                        if (!hasSelectedVisible) {
+                            tankSelect.value = '';
+                        }
+                    };
+
+                    const closeModal = () => {
+                        modal.classList.add('hidden');
+                    };
+
+                    openButtons.forEach((button) => {
+                        button.addEventListener('click', () => {
+                            const pumpId = button.dataset.pumpId;
+                            const pumpName = button.dataset.pumpName || '';
+                            const categoryId = button.dataset.categoryId || '';
+                            const tankId = button.dataset.tankId || '';
+
+                            form.action = `/dev/pumps/${pumpId}`;
+                            nameInput.value = pumpName;
+                            categorySelect.value = categoryId;
+                            filterModalTanks();
+                            tankSelect.value = tankId;
+
+                            modal.classList.remove('hidden');
+                        });
+                    });
+
+                    categorySelect.addEventListener('change', filterModalTanks);
+                    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+                    if (overlay) overlay.addEventListener('click', closeModal);
+                })();
+            </script>
         @elseif ($navPrefix === 'dev' && $page === 'tanks')
             <form method="post" action="{{ route('dev.tanks.store') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
                 @csrf
