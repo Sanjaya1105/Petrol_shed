@@ -3,12 +3,11 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
-use App\Models\Role;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -36,9 +35,9 @@ class User extends Authenticatable
         }
 
         return match ((int) $this->role->role_number) {
-            1 => route('dev.dashboard'),
-            2 => route('admin.dashboard'),
-            3 => route('data-entry.dashboard'),
+            1 => route('dev.show', ['page' => 'home']),
+            2 => route('admin.show', ['page' => 'home']),
+            3 => route('data-entry.show', ['page' => 'home']),
             default => route('s_login'),
         };
     }
