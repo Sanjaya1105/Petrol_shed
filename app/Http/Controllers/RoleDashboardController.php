@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Tank;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -72,13 +73,67 @@ class RoleDashboardController extends Controller
             ->with('status', 'Category deleted successfully.');
     }
 
+    public function storeDevTank(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'tank_name' => ['required', 'string', 'max:255'],
+            'tank_capacity' => ['required', 'numeric', 'min:0'],
+            'category_id' => ['required', 'integer', 'exists:category,id'],
+        ]);
+
+        Tank::query()->create([
+            'tank_name' => $validated['tank_name'],
+            'tank_capacity' => $validated['tank_capacity'],
+            'category_id' => $validated['category_id'],
+        ]);
+
+        return redirect()
+            ->route('dev.show', ['page' => 'tanks'])
+            ->with('status', 'Tank saved successfully.');
+    }
+
+    public function updateDevTank(Request $request, Tank $tank): RedirectResponse
+    {
+        $validated = $request->validate([
+            'tank_name' => ['required', 'string', 'max:255'],
+            'tank_capacity' => ['required', 'numeric', 'min:0'],
+            'category_id' => ['required', 'integer', 'exists:category,id'],
+        ]);
+
+        $tank->update([
+            'tank_name' => $validated['tank_name'],
+            'tank_capacity' => $validated['tank_capacity'],
+            'category_id' => $validated['category_id'],
+        ]);
+
+        return redirect()
+            ->route('dev.show', ['page' => 'tanks'])
+            ->with('status', 'Tank updated successfully.')
+            ->with('updated_tank_id', $tank->id)
+            ->with('updated_tank_name', $tank->tank_name);
+    }
+
+    public function deleteDevTank(Tank $tank): RedirectResponse
+    {
+        $tank->delete();
+
+        return redirect()
+            ->route('dev.show', ['page' => 'tanks'])
+            ->with('status', 'Tank deleted successfully.');
+    }
+
     protected function renderPage(string $navPrefix, string $heading, string $page): View
     {
         abort_unless(array_key_exists($page, self::SECTION_TITLES), 404);
 
         $categories = null;
-        if ($navPrefix === 'dev' && $page === 'categories') {
+        if ($navPrefix === 'dev' && in_array($page, ['categories', 'tanks'], true)) {
             $categories = Category::query()->orderBy('id')->get();
+        }
+
+        $tanks = null;
+        if ($navPrefix === 'dev' && $page === 'tanks') {
+            $tanks = Tank::query()->orderBy('id')->get();
         }
 
         return view('dashboard.page', [
@@ -87,6 +142,7 @@ class RoleDashboardController extends Controller
             'page' => $page,
             'sectionTitle' => self::SECTION_TITLES[$page],
             'categories' => $categories,
+            'tanks' => $tanks,
         ]);
     }
 }

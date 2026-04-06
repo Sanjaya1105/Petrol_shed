@@ -24,6 +24,9 @@ Route::middleware(['auth', 'role:1'])->prefix('dev')->name('dev.')->group(functi
     Route::post('/categories', [RoleDashboardController::class, 'storeDevCategory'])->name('categories.store');
     Route::put('/categories/{category}', [RoleDashboardController::class, 'updateDevCategory'])->name('categories.update');
     Route::delete('/categories/{category}', [RoleDashboardController::class, 'deleteDevCategory'])->name('categories.delete');
+    Route::post('/tanks', [RoleDashboardController::class, 'storeDevTank'])->name('tanks.store');
+    Route::put('/tanks/{tank}', [RoleDashboardController::class, 'updateDevTank'])->name('tanks.update');
+    Route::delete('/tanks/{tank}', [RoleDashboardController::class, 'deleteDevTank'])->name('tanks.delete');
     Route::get('/{page}', [RoleDashboardController::class, 'showDev'])
         ->where('page', 'home|categories|pumps|tanks|price')
         ->name('show');
