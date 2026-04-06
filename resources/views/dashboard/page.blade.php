@@ -142,9 +142,23 @@
             <div class="mt-6 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
                 <h3 class="text-sm font-semibold mb-3">Available pumps</h3>
                 @if ($pumps !== null && $pumps->isNotEmpty())
+                    <div class="mb-3">
+                        <label for="pump_filter_category_id" class="block text-sm font-medium mb-1">Filter by category</label>
+                        <select
+                            id="pump_filter_category_id"
+                            class="w-full sm:w-72 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                            <option value="">All categories</option>
+                            @if ($categories !== null)
+                                @foreach ($categories as $categoryOption)
+                                    <option value="{{ $categoryOption->id }}">{{ $categoryOption->category }}</option>
+                                @endforeach
+                            @endif
+                        </select>
+                    </div>
                     <div class="space-y-2">
                         @foreach ($pumps as $pump)
-                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-gray-200 dark:border-gray-700 rounded-md p-3 js-pump-row" data-category-id="{{ $pump->category_id }}">
                                 <p class="text-sm font-medium">{{ $pump->pump_name }}</p>
                                 <div class="flex gap-2">
                                     <button
@@ -256,6 +270,25 @@
 
                     categorySelect.addEventListener('change', filterTanks);
                     filterTanks();
+                })();
+            </script>
+            <script>
+                (function () {
+                    const filterSelect = document.getElementById('pump_filter_category_id');
+                    const rows = Array.from(document.querySelectorAll('.js-pump-row'));
+                    if (!filterSelect || rows.length === 0) return;
+
+                    const applyFilter = () => {
+                        const selectedCategoryId = filterSelect.value;
+                        rows.forEach((row) => {
+                            const rowCategoryId = row.dataset.categoryId;
+                            const show = !selectedCategoryId || rowCategoryId === selectedCategoryId;
+                            row.classList.toggle('hidden', !show);
+                        });
+                    };
+
+                    filterSelect.addEventListener('change', applyFilter);
+                    applyFilter();
                 })();
             </script>
             <script>
