@@ -37,11 +37,16 @@ Route::middleware(['auth', 'role:1'])->prefix('dev')->name('dev.')->group(functi
 });
 
 Route::middleware(['auth', 'role:2'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/sales/staff-report.pdf', [RoleDashboardController::class, 'downloadAdminSalesStaffPdf'])->name('sales.staff.pdf');
+    Route::get('/sales/pumps-report.pdf', [RoleDashboardController::class, 'downloadAdminSalesPumpsPdf'])->name('sales.pumps.pdf');
     Route::post('/prices', [RoleDashboardController::class, 'saveAdminPrices'])->name('prices.save');
     Route::post('/staff', [RoleDashboardController::class, 'storeAdminStaff'])->name('staff.store');
     Route::delete('/staff/{staff}', [RoleDashboardController::class, 'deleteAdminStaff'])->name('staff.delete');
+    Route::post('/pumps/{pump}/sale', [RoleDashboardController::class, 'saveAdminPumpSale'])->name('pumps.sale.save');
+    Route::get('/pumps/{pump}/sale-prefill', [RoleDashboardController::class, 'prefillAdminPumpSale'])->name('pumps.sale.prefill');
+    Route::post('/tanks/{tank}/restock', [RoleDashboardController::class, 'restockAdminTank'])->name('tanks.restock');
     Route::get('/{page}', [RoleDashboardController::class, 'showAdmin'])
-        ->where('page', 'home|categories|pumps|tanks|price|staff')
+        ->where('page', 'home|categories|pumps|tanks|price|staff|sales')
         ->name('show');
 });
 

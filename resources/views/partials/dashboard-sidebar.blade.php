@@ -8,6 +8,7 @@
     ];
     if ($navPrefix === 'admin') {
         $items[] = ['page' => 'staff', 'label' => 'Staff'];
+        $items[] = ['page' => 'sales', 'label' => 'Sales'];
     }
     $routeName = $navPrefix.'.show';
 @endphp

@@ -5,8 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
-#[Fillable(['tank_name', 'tank_capacity', 'available_amount', 'category_id'])]
-class Tank extends Model
+#[Fillable(['pump_id', 'staff_id', 'meter_amount', 'date'])]
+class Sale extends Model
 {
     //
 }
