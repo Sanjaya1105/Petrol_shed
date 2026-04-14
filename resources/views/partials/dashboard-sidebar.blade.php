@@ -1,14 +1,24 @@
 @php
     $items = [
         ['page' => 'home', 'label' => 'Home'],
-        ['page' => 'categories', 'label' => 'Categories'],
         ['page' => 'pumps', 'label' => 'Pumps'],
-        ['page' => 'tanks', 'label' => 'Tanks'],
         ['page' => 'price', 'label' => 'Price'],
     ];
+    if ($navPrefix === 'dev') {
+        array_splice($items, 1, 0, [['page' => 'categories', 'label' => 'Categories']]);
+        array_splice($items, 3, 0, [['page' => 'tanks', 'label' => 'Tanks']]);
+        $items[] = ['page' => 'sales', 'label' => 'Sales'];
+        $items[] = ['page' => 'theme', 'label' => 'Theme'];
+    }
     if ($navPrefix === 'admin') {
         $items[] = ['page' => 'staff', 'label' => 'Staff'];
         $items[] = ['page' => 'sales', 'label' => 'Sales'];
+        $items[] = ['page' => 'cash-rec', 'label' => 'Cash Rec'];
+        $items[] = ['page' => 'bill', 'label' => 'Bill'];
+    }
+    if ($navPrefix === 'data-entry') {
+        $items[] = ['page' => 'sales', 'label' => 'Sales'];
+        $items[] = ['page' => 'bill', 'label' => 'Bill'];
     }
     $routeName = $navPrefix.'.show';
 @endphp

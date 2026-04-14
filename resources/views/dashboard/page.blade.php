@@ -3,7 +3,7 @@
 @section('title', $sectionTitle.' — '.$heading.' — '.config('app.name'))
 
 @section('content')
-    <div class="max-w-3xl w-full">
+    <div class="{{ $navPrefix === 'admin' && in_array($page, ['sales', 'home'], true) ? 'w-full max-w-none' : 'max-w-3xl w-full' }}">
         <h2 class="text-lg font-medium text-[#706f6c] dark:text-[#A1A09A] mb-2">{{ $sectionTitle }}</h2>
         <p class="text-sm text-[#706f6c] dark:text-[#A1A09A] mb-4">
             Signed in as {{ auth()->user()->name }} ({{ auth()->user()->username }}).
@@ -521,12 +521,12 @@
                     <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No pumps added yet.</p>
                 @endif
             </div>
-        @elseif ($navPrefix === 'admin' && $page === 'sales')
+        @elseif (in_array($navPrefix, ['admin', 'dev', 'data-entry'], true) && $page === 'sales')
             @php
                 $salesReportCarbon = \Illuminate\Support\Carbon::parse($salesReportDate ?? now()->subDay());
                 $salesPriorMeterCarbon = $salesReportCarbon->copy()->subDay();
                 $salesPickerMax = $salesDatePickerMax ?? now()->subDay()->toDateString();
-                $salesListUrl = route('admin.show', ['page' => 'sales']);
+                $salesListUrl = route($navPrefix.'.show', ['page' => 'sales']);
                 $salesViewMode = $salesView ?? 'staff';
                 $salesViewStaffUrl = request()->fullUrlWithQuery(['sales_view' => 'staff']);
                 $salesViewPumpsUrl = request()->fullUrlWithQuery(['sales_view' => 'pumps']);
@@ -538,10 +538,10 @@
                     fn ($v) => $v !== null && $v !== ''
                 );
                 $salesPdfQuerySuffix = count($salesPdfDateQuery) > 0 ? '?'.http_build_query($salesPdfDateQuery) : '';
-                $staffPdfUrl = route('admin.sales.staff.pdf').$salesPdfQuerySuffix;
-                $pumpsPdfUrl = route('admin.sales.pumps.pdf').$salesPdfQuerySuffix;
+                $staffPdfUrl = route($navPrefix.'.sales.staff.pdf').$salesPdfQuerySuffix;
+                $pumpsPdfUrl = route($navPrefix.'.sales.pumps.pdf').$salesPdfQuerySuffix;
             @endphp
-            <div class="bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+            <div class="bg-gradient-to-b from-white to-gray-50 dark:from-[#161615] dark:to-[#121212] border border-gray-200 dark:border-gray-700 rounded-xl p-4 sm:p-6 shadow-sm">
                 <h3 class="text-base font-semibold text-[#1b1b18] dark:text-[#EDEDEC] mb-1">
                     Sales records for {{ $salesReportCarbon->format('l, F j, Y') }}
                 </h3>
@@ -555,7 +555,7 @@
                     <button
                         type="button"
                         id="sales_date_open_btn"
-                        class="inline-flex items-center justify-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm font-medium text-[#1b1b18] dark:text-[#EDEDEC] shadow-sm hover:bg-gray-50 dark:hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-[#161615]"
+                        class="inline-flex items-center justify-center rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 shadow-sm hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-[#161615]"
                         aria-controls="sales_date_input"
                     >
                         Choose report date
@@ -584,7 +584,7 @@
                     />
                 </div>
 
-                <fieldset class="mb-4 border border-gray-200 dark:border-gray-700 rounded-md p-3 bg-gray-50/80 dark:bg-gray-900/30">
+                <fieldset class="mb-4 border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white/80 dark:bg-[#0f0f0f]/80 shadow-sm">
                     <legend class="px-1 text-xs font-medium text-[#706f6c] dark:text-[#A1A09A]">Report layout</legend>
                     <div class="flex flex-wrap items-center gap-4 sm:gap-6" role="presentation">
                         <label class="inline-flex items-center gap-2 cursor-pointer text-sm text-[#1b1b18] dark:text-[#EDEDEC]">
@@ -611,7 +611,7 @@
                         </label>
                         <a
                             href="{{ $salesViewMode === 'staff' ? $staffPdfUrl : $pumpsPdfUrl }}"
-                            class="inline-flex items-center justify-center rounded-md bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 px-3 py-2 text-sm font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-[#161615] ml-auto sm:ml-0"
+                            class="inline-flex items-center justify-center rounded-lg bg-emerald-600 dark:bg-emerald-500 text-white px-3 py-2 text-sm font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-[#161615] ml-auto sm:ml-0 shadow-sm"
                         >Generate PDF</a>
                     </div>
                 </fieldset>
@@ -674,8 +674,8 @@
                                 ->sum(fn ($e) => (float) $e['line_total']);
                             $pumpsPricedCount = $pumpSaleRows->filter(fn ($e) => $e['line_total'] !== null)->count();
                         @endphp
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
+                        <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                            <table class="min-w-full overflow-hidden text-sm">
                                 <thead class="bg-gray-100 dark:bg-gray-800">
                                     <tr>
                                         <th class="text-left px-3 py-2 font-semibold">Pump</th>
@@ -689,7 +689,7 @@
                                 </thead>
                                 <tbody>
                                     @foreach ($pumpSaleRows as $entry)
-                                        <tr class="border-t border-gray-200 dark:border-gray-700">
+                                        <tr class="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50/70 dark:hover:bg-gray-800/40 transition-colors">
                                             <td class="px-3 py-2 align-top font-medium">{{ $entry['pump_name'] }}</td>
                                             <td class="px-3 py-2 align-top">{{ $entry['staff_name'] }}</td>
                                             <td class="px-3 py-2 align-top">
@@ -793,15 +793,77 @@
 
                                 return strnatcasecmp($nameA, $nameB);
                             })->values();
-                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey) {
+                            $billAmountByStaffId = $billAmountByStaffId ?? collect();
+                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey, $cashByStaffId, $cashCategoryTotalsByStaff, $billAmountByStaffId) {
                                 $rows = $byStaffKey->get($key)->sortBy('pump_name', SORT_NATURAL)->values();
+                                $groupTotal = $rows
+                                    ->filter(fn ($r) => $r['line_total'] !== null)
+                                    ->sum(fn ($r) => (float) $r['line_total']);
+                                $groupHasTotals = $rows->contains(fn ($r) => $r['line_total'] !== null);
+                                $cashTotal = null;
+                                $visaMasterTotal = null;
+                                $amexTotal = null;
+                                $billAmountTotal = null;
+                                $shortTotal = null;
+                                if ($key !== '') {
+                                    $cashTotal = $cashByStaffId->get((int) $key);
+                                    if ($cashTotal === null) {
+                                        $cashTotal = $cashByStaffId->get((string) $key);
+                                    }
+                                    $categoryTotals = $cashCategoryTotalsByStaff->get((int) $key) ?? $cashCategoryTotalsByStaff->get((string) $key);
+                                    if ($categoryTotals !== null) {
+                                        $visaMasterTotal = $categoryTotals->get('visa-master');
+                                        $amexTotal = $categoryTotals->get('amex');
+                                    }
+                                    $billAmountTotal = $billAmountByStaffId->get((int) $key);
+                                    if ($billAmountTotal === null) {
+                                        $billAmountTotal = $billAmountByStaffId->get((string) $key);
+                                    }
+
+                                    $shortTotal = (float) $groupTotal - (
+                                        (float) ($cashTotal ?? 0)
+                                        + (float) ($visaMasterTotal ?? 0)
+                                        + (float) ($amexTotal ?? 0)
+                                        + (float) ($billAmountTotal ?? 0)
+                                    );
+                                }
 
                                 return [
                                     'staff_name' => $rows->first()['staff_name'],
                                     'staff_id_for_row' => $key,
                                     'rows' => $rows,
+                                    'cash_total' => $cashTotal !== null ? number_format((float) $cashTotal, 2) : '-',
+                                    'visa_master_total' => $visaMasterTotal !== null ? number_format((float) $visaMasterTotal, 2) : '-',
+                                    'amex_total' => $amexTotal !== null ? number_format((float) $amexTotal, 2) : '-',
+                                    'bill_amount' => $billAmountTotal !== null ? number_format((float) $billAmountTotal, 2) : '-',
+                                    'short_total' => $shortTotal !== null ? number_format((float) $shortTotal, 2) : '-',
+                                    'group_total' => $groupHasTotals ? number_format((float) $groupTotal, 2) : '-',
                                 ];
                             });
+                            $staffGroupsPerPage = 3;
+                            $staffGroupsTotal = $staffSaleGroups->count();
+                            $staffGroupsLastPage = max((int) ceil($staffGroupsTotal / $staffGroupsPerPage), 1);
+                            $staffGroupsPage = (int) request()->query('sales_staff_page', 1);
+                            if ($staffGroupsPage < 1) {
+                                $staffGroupsPage = 1;
+                            }
+                            if ($staffGroupsPage > $staffGroupsLastPage) {
+                                $staffGroupsPage = $staffGroupsLastPage;
+                            }
+                            $staffSaleGroupsPage = $staffSaleGroups
+                                ->forPage($staffGroupsPage, $staffGroupsPerPage)
+                                ->values();
+                            $staffGroupsPaginator = new \Illuminate\Pagination\LengthAwarePaginator(
+                                $staffSaleGroupsPage,
+                                $staffGroupsTotal,
+                                $staffGroupsPerPage,
+                                $staffGroupsPage,
+                                [
+                                    'path' => request()->url(),
+                                    'pageName' => 'sales_staff_page',
+                                    'query' => request()->query(),
+                                ]
+                            );
                         @endphp
                         <div class="mb-3">
                             <label for="sales_staff_filter" class="block text-sm font-medium mb-1">Filter by staff</label>
@@ -816,8 +878,8 @@
                             </select>
                         </div>
                         <p class="text-xs text-[#706f6c] dark:text-[#A1A09A] mb-2">Pumps are grouped under each staff (one cell spans multiple rows when that staff has more than one pump). Rows with no sale show empty readings; filter by staff hides groups unless <strong>All staff</strong> is selected.</p>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
+                        <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                            <table class="min-w-full overflow-hidden text-sm">
                                 <thead class="bg-gray-100 dark:bg-gray-800">
                                     <tr>
                                         <th class="text-left px-3 py-2 font-semibold">Staff</th>
@@ -827,15 +889,21 @@
                                         <th class="text-left px-3 py-2 font-semibold">Difference (L)</th>
                                         <th class="text-left px-3 py-2 font-semibold">Per liter price</th>
                                         <th class="text-left px-3 py-2 font-semibold">Line total</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Total</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Cash amount</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Visa/Master</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Amex</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Bill amount</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Short</th>
                                     </tr>
                                 </thead>
-                                @foreach ($staffSaleGroups as $group)
+                                @foreach ($staffSaleGroupsPage as $group)
                                     <tbody
                                         class="border-t border-gray-200 dark:border-gray-700 js-sales-staff-group"
                                         data-staff-id="{{ $group['staff_id_for_row'] }}"
                                     >
                                         @foreach ($group['rows'] as $idx => $entry)
-                                            <tr class="border-t border-gray-200 dark:border-gray-700">
+                                            <tr class="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50/70 dark:hover:bg-gray-800/40 transition-colors">
                                                 @if ($idx === 0)
                                                     <td class="px-3 py-2 align-top font-medium align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['staff_name'] }}</td>
                                                 @endif
@@ -855,6 +923,14 @@
                                                 <td class="px-3 py-2 align-top">
                                                     {{ $entry['line_total'] !== null ? number_format((float) $entry['line_total'], 2) : '-' }}
                                                 </td>
+                                                @if ($idx === 0)
+                                                    <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['group_total'] }}</td>
+                                                    <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['cash_total'] }}</td>
+                                                    <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['visa_master_total'] }}</td>
+                                                    <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['amex_total'] }}</td>
+                                                    <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['bill_amount'] }}</td>
+                                                    <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['short_total'] }}</td>
+                                                @endif
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -862,13 +938,19 @@
                                 @if ($staffPricedCount > 0)
                                     <tfoot class="bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
                                         <tr>
-                                            <td class="px-3 py-2 font-semibold text-right" colspan="6">Grand total</td>
+                                            <td class="px-3 py-2 font-semibold text-right" colspan="7">Grand total</td>
                                             <td class="px-3 py-2 font-semibold">{{ number_format((float) $staffReportGrandTotal, 2) }}</td>
+                                            <td class="px-3 py-2" colspan="5"></td>
                                         </tr>
                                     </tfoot>
                                 @endif
                             </table>
                         </div>
+                        @if ($staffGroupsPaginator->hasPages())
+                            <div class="mt-3">
+                                {{ $staffGroupsPaginator->onEachSide(1)->links() }}
+                            </div>
+                        @endif
                         <script>
                             (function () {
                                 const filterSelect = document.getElementById('sales_staff_filter');
@@ -1256,19 +1338,30 @@
 
             <div class="mt-6 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
                 <h3 class="text-sm font-semibold mb-3">Added staff</h3>
-                @if ($staffMembers !== null && $staffMembers->isNotEmpty())
+                @php
+                    $staffList = $staffMembers instanceof \Illuminate\Pagination\LengthAwarePaginator
+                        ? collect($staffMembers->items())
+                        : ($staffMembers ?? collect());
+                @endphp
+                @if ($staffList->isNotEmpty())
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                        @foreach ($staffMembers as $staff)
+                        @foreach ($staffList as $staff)
                             <div class="h-14 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 flex items-center justify-between gap-2">
                                 <p class="text-sm truncate">{{ $staff->name }}</p>
                                 <form method="post" action="{{ route('admin.staff.delete', $staff) }}" onsubmit="return confirm('Delete this staff member?');">
                                     @csrf
                                     @method('DELETE')
+                                    <input type="hidden" name="staff_page" value="{{ request()->query('staff_page') }}">
                                     <button type="submit" class="text-red-700 dark:text-red-400 text-sm leading-none px-1">X</button>
                                 </form>
                             </div>
                         @endforeach
                     </div>
+                    @if ($staffMembers instanceof \Illuminate\Pagination\LengthAwarePaginator && $staffMembers->hasPages())
+                        <div class="mt-3">
+                            {{ $staffMembers->onEachSide(1)->links() }}
+                        </div>
+                    @endif
                 @else
                     <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No staff added yet.</p>
                 @endif
@@ -1397,6 +1490,764 @@
                     <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No categories available. Add categories first.</p>
                 @endif
             </form>
+        @elseif (in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'cash-rec')
+            <div class="space-y-3">
+                <h3 class="text-sm font-semibold">Cash</h3>
+                @php
+                    $cashDate = $cashRecDate ?? now()->toDateString();
+                    $cashDateMax = $cashRecDateMax ?? now()->toDateString();
+                    $cashStaffOptions = $cashRecStaffOptions ?? collect();
+                    $cashCategoryOptions = $cashRecCategoryOptions ?? ['cash' => 'Cash', 'visa-master' => 'Visa/Master', 'amex' => 'Amex'];
+                    $selectedCashCategory = (string) ($cashRecSelectedCategory ?? 'cash');
+                    $selectedCashStaff = (string) request()->query('cash_staff_id', '');
+                    $cashRecListUrl = route($navPrefix.'.show', ['page' => 'cash-rec']);
+                    $cashRecSaveUrl = route($navPrefix.'.cash-rec.save');
+                    $cashRecBaseUrl = route($navPrefix.'.show', ['page' => 'cash-rec']);
+                    $cashPrefillValues = collect($cashRecExistingValues ?? [])
+                        ->map(fn ($value) => is_array($value) ? (string) ($value['amount'] ?? '') : (string) $value)
+                        ->filter(fn ($value) => $value !== '')
+                        ->take(3)
+                        ->values();
+                    $cashRecRecords = $cashRecRecords ?? collect();
+                    $cashHistoryDate = $cashRecHistoryDate ?? now()->subDay()->toDateString();
+                    if ($cashPrefillValues->isEmpty()) {
+                        $cashPrefillValues = collect(['']);
+                    }
+                    if ($selectedCashCategory !== 'cash') {
+                        $cashPrefillValues = collect([$cashPrefillValues->first() ?? '']);
+                    }
+                    $initialCashRowCount = $selectedCashCategory === 'cash'
+                        ? min(3, max($cashPrefillValues->count() + 1, 2))
+                        : 1;
+                @endphp
+                <div class="overflow-x-auto">
+                    <form method="post" action="{{ $cashRecSaveUrl }}">
+                        @csrf
+                        <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
+                        <thead class="bg-gray-100 dark:bg-gray-800">
+                            <tr>
+                                <th class="text-left px-3 py-2 font-semibold">Date</th>
+                                <th class="text-left px-3 py-2 font-semibold">Staff</th>
+                                <th class="text-left px-3 py-2 font-semibold">Category</th>
+                                <th class="text-left px-3 py-2 font-semibold">Amount</th>
+                                <th class="text-left px-3 py-2 font-semibold">Total</th>
+                                <th class="text-left px-3 py-2 font-semibold">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cash_rec_table_body">
+                            @foreach ($cashPrefillValues as $idx => $cashValue)
+                                <tr class="border-t border-gray-200 dark:border-gray-700" data-cash-line>
+                                    @if ($idx === 0)
+                                        <td class="px-3 py-2 align-top" id="cash_rec_date_cell" rowspan="{{ $initialCashRowCount }}">
+                                            <input
+                                                type="date"
+                                                id="cash_rec_date"
+                                                name="cash_date"
+                                                value="{{ $cashDate }}"
+                                                max="{{ $cashDateMax }}"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                            >
+                                        </td>
+                                        <td class="px-3 py-2 align-top" id="cash_rec_staff_cell" rowspan="{{ $initialCashRowCount }}">
+                                            <select
+                                                id="cash_rec_staff"
+                                                name="cash_staff_id"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                {{ $cashStaffOptions->isEmpty() ? 'disabled' : '' }}
+                                            >
+                                                <option value="">Select staff</option>
+                                                @foreach ($cashStaffOptions as $staffOption)
+                                                    <option value="{{ $staffOption->id }}" {{ $selectedCashStaff === (string) $staffOption->id ? 'selected' : '' }}>
+                                                        {{ ($staffOption->is_active ?? true) ? $staffOption->name : $staffOption->name.' (Removed)' }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td class="px-3 py-2 align-top" id="cash_rec_category_cell" rowspan="{{ $initialCashRowCount }}">
+                                            <select
+                                                id="cash_rec_category"
+                                                name="cash_category"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                            >
+                                                @foreach ($cashCategoryOptions as $optionValue => $optionLabel)
+                                                    <option value="{{ $optionValue }}" {{ $selectedCashCategory === $optionValue ? 'selected' : '' }}>{{ $optionLabel }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                    @endif
+                                    <td class="px-3 py-2 align-top">
+                                        <input
+                                            type="number"
+                                            inputmode="decimal"
+                                            min="0"
+                                            step="0.01"
+                                            name="cash_values[]"
+                                            class="js-cash-input w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                            placeholder="Enter amount"
+                                            value="{{ $cashValue }}"
+                                        >
+                                    </td>
+                                    @if ($idx === 0)
+                                        <td class="px-3 py-2 align-top font-medium" id="cash_rec_total_cell" rowspan="{{ $initialCashRowCount }}">
+                                            {{ $cashRecExistingTotal ?? '0.00' }}
+                                        </td>
+                                        <td class="px-3 py-2 align-top" id="cash_rec_action_cell" rowspan="{{ $initialCashRowCount }}">
+                                            <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                                                Save
+                                            </button>
+                                        </td>
+                                    @endif
+                                </tr>
+                            @endforeach
+                            @if ($selectedCashCategory === 'cash' && $cashPrefillValues->count() < 3)
+                                <tr class="border-t border-gray-200 dark:border-gray-700" data-cash-line>
+                                    <td class="px-3 py-2 align-top">
+                                        <input
+                                            type="number"
+                                            inputmode="decimal"
+                                            min="0"
+                                            step="0.01"
+                                            name="cash_values[]"
+                                            class="js-cash-input w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                            placeholder="Enter amount"
+                                        >
+                                    </td>
+                                </tr>
+                            @endif
+                        </tbody>
+                        </table>
+                    </form>
+                </div>
+                <div class="space-y-2">
+                    <label for="cash_history_date" class="block text-sm font-medium">View saved records by date</label>
+                    <div class="max-w-xs">
+                        <input
+                            type="date"
+                            id="cash_history_date"
+                            value="{{ $cashHistoryDate }}"
+                            max="{{ $cashDateMax }}"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
+                        <thead class="bg-gray-100 dark:bg-gray-800">
+                            <tr>
+                                <th class="text-left px-3 py-2 font-semibold">Date</th>
+                                <th class="text-left px-3 py-2 font-semibold">Staff</th>
+                                <th class="text-left px-3 py-2 font-semibold">Category/amounts</th>
+                                <th class="text-left px-3 py-2 font-semibold">Cash values</th>
+                                <th class="text-left px-3 py-2 font-semibold">Total</th>
+                                <th class="text-left px-3 py-2 font-semibold">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($cashRecRecords as $rec)
+                                <tr class="border-t border-gray-200 dark:border-gray-700">
+                                    <td class="px-3 py-2 align-top">{{ \Illuminate\Support\Carbon::parse($rec->date)->toDateString() }}</td>
+                                    <td class="px-3 py-2 align-top">{{ $rec->staff?->name ?? '—' }}</td>
+                                    <td class="px-3 py-2 align-top">
+                                        {{ match ($rec->category ?? 'cash') {
+                                            'visa-master' => 'Visa/Master',
+                                            'amex' => 'Amex',
+                                            default => 'Cash',
+                                        } }}
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        {{ number_format((float) ($rec->cash_total ?? 0), 2) }}
+                                    </td>
+                                    <td class="px-3 py-2 align-top">{{ number_format((float) ($rec->cash_total ?? 0), 2) }}</td>
+                                    <td class="px-3 py-2 align-top">
+                                        @php
+                                            $editUrl = $cashRecBaseUrl.'?'.http_build_query(array_filter([
+                                                'cash_date' => \Illuminate\Support\Carbon::parse($rec->date)->toDateString(),
+                                                'cash_staff_id' => $rec->staff_id,
+                                                'cash_category' => $rec->category ?? 'cash',
+                                                'cash_history_date' => $cashHistoryDate,
+                                            ], fn ($v) => $v !== null && $v !== ''));
+                                        @endphp
+                                        <div class="flex items-center gap-2">
+                                            <a
+                                                href="{{ $editUrl }}"
+                                                class="inline-flex rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
+                                            >
+                                                Update
+                                            </a>
+                                            <form method="post" action="{{ route($navPrefix.'.cash-rec.delete', $rec) }}" onsubmit="return confirm('Delete this cash record?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <input type="hidden" name="cash_date" value="{{ $cashDate }}">
+                                                <input type="hidden" name="cash_staff_id" value="{{ $selectedCashStaff }}">
+                                                <input type="hidden" name="cash_category" value="{{ $selectedCashCategory }}">
+                                                <input type="hidden" name="cash_history_date" value="{{ $cashHistoryDate }}">
+                                                <input type="hidden" name="cash_history_page" value="{{ request()->query('cash_history_page') }}">
+                                                <button
+                                                    type="submit"
+                                                    class="inline-flex rounded-md border border-red-300 text-red-700 dark:border-red-700 dark:text-red-400 px-3 py-1.5 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/30"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr class="border-t border-gray-200 dark:border-gray-700">
+                                    <td colspan="6" class="px-3 py-3 text-sm text-[#706f6c] dark:text-[#A1A09A]">
+                                        No saved records for this date.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                @if ($cashRecRecords instanceof \Illuminate\Pagination\LengthAwarePaginator && $cashRecRecords->hasPages())
+                    <div class="mt-3">
+                        {{ $cashRecRecords->onEachSide(1)->links() }}
+                    </div>
+                @endif
+            </div>
+            <script>
+                (function () {
+                    const dateInput = document.getElementById('cash_rec_date');
+                    const staffSelect = document.getElementById('cash_rec_staff');
+                    const categorySelect = document.getElementById('cash_rec_category');
+                    const historyDateInput = document.getElementById('cash_history_date');
+                    const cashTableBody = document.getElementById('cash_rec_table_body');
+                    const totalCell = document.getElementById('cash_rec_total_cell');
+                    const dateCell = dateInput?.closest('td');
+                    const staffCell = document.getElementById('cash_rec_staff_cell');
+                    const categoryCell = document.getElementById('cash_rec_category_cell');
+                    const actionCell = document.getElementById('cash_rec_action_cell');
+                    const baseUrl = @json($cashRecListUrl);
+                    if (!dateInput) return;
+
+                    const buildUrl = () => {
+                        const url = new URL(baseUrl, window.location.origin);
+                        if (dateInput.value) {
+                            url.searchParams.set('cash_date', dateInput.value);
+                        }
+                        if (staffSelect && staffSelect.value) {
+                            url.searchParams.set('cash_staff_id', staffSelect.value);
+                        }
+                        if (categorySelect && categorySelect.value) {
+                            url.searchParams.set('cash_category', categorySelect.value);
+                        }
+                        if (historyDateInput && historyDateInput.value) {
+                            url.searchParams.set('cash_history_date', historyDateInput.value);
+                        }
+
+                        return url.toString();
+                    };
+
+                    dateInput.addEventListener('change', () => {
+                        window.location.href = buildUrl();
+                    });
+                    if (staffSelect) {
+                        staffSelect.addEventListener('change', () => {
+                            window.location.href = buildUrl();
+                        });
+                    }
+                    if (categorySelect) {
+                        categorySelect.addEventListener('change', () => {
+                            window.location.href = buildUrl();
+                        });
+                    }
+                    if (historyDateInput) {
+                        historyDateInput.addEventListener('change', () => {
+                            window.location.href = buildUrl();
+                        });
+                    }
+
+                    const openDatePicker = (input) => {
+                        if (!input) return;
+                        const tryPicker = () => {
+                            try {
+                                if (typeof input.showPicker === 'function') {
+                                    input.showPicker();
+                                } else {
+                                    input.focus({ preventScroll: true });
+                                    input.click();
+                                }
+                            } catch (err) {
+                                input.focus({ preventScroll: true });
+                                input.click();
+                            }
+                        };
+                        input.addEventListener('click', tryPicker);
+                        input.addEventListener('focus', tryPicker);
+                    };
+                    openDatePicker(dateInput);
+                    openDatePicker(historyDateInput);
+
+                    if (!cashTableBody || !totalCell || !dateCell || !staffCell || !categoryCell || !actionCell || !categorySelect) return;
+
+                    const cashRows = () => Array.from(cashTableBody.querySelectorAll('tr[data-cash-line]'));
+                    const cashInputs = () => Array.from(cashTableBody.querySelectorAll('.js-cash-input'));
+
+                    const syncRowspan = () => {
+                        const count = cashRows().length || 1;
+                        dateCell.setAttribute('rowspan', String(count));
+                        staffCell.setAttribute('rowspan', String(count));
+                        categoryCell.setAttribute('rowspan', String(count));
+                        totalCell.setAttribute('rowspan', String(count));
+                        actionCell.setAttribute('rowspan', String(count));
+                    };
+
+                    const recalcTotal = () => {
+                        const total = cashInputs().reduce((sum, input) => {
+                            const raw = (input.value || '').trim();
+                            if (raw === '') return sum;
+                            const n = Number(raw);
+                            return Number.isFinite(n) ? sum + n : sum;
+                        }, 0);
+                        totalCell.textContent = total.toFixed(2);
+                    };
+
+                    const addCashRow = () => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'border-t border-gray-200 dark:border-gray-700';
+                        tr.setAttribute('data-cash-line', '');
+                        tr.innerHTML = `
+                            <td class="px-3 py-2 align-top">
+                                <input
+                                    type="number"
+                                    inputmode="decimal"
+                                    min="0"
+                                    step="0.01"
+                                    name="cash_values[]"
+                                    class="js-cash-input w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                    placeholder="Enter cash amount"
+                                >
+                            </td>
+                        `;
+                        cashTableBody.appendChild(tr);
+                        syncRowspan();
+                    };
+
+                    const ensureTrailingEmptyRow = () => {
+                        const rows = cashRows();
+                        if (rows.length === 0) {
+                            addCashRow();
+                            return;
+                        }
+                        const inputs = cashInputs();
+                        const last = inputs.at(-1);
+                        if (rows.length < 3 && last && (last.value || '').trim() !== '') {
+                            addCashRow();
+                        }
+                    };
+
+                    cashTableBody.addEventListener('input', (event) => {
+                        const target = event.target;
+                        if (!(target instanceof HTMLInputElement) || !target.classList.contains('js-cash-input')) {
+                            return;
+                        }
+                        recalcTotal();
+                        if (categorySelect.value !== 'cash') {
+                            return;
+                        }
+                        const inputs = cashInputs();
+                        const last = inputs.at(-1);
+                        if (cashRows().length < 3 && last === target && (target.value || '').trim() !== '') {
+                            addCashRow();
+                        }
+                    });
+
+                    syncRowspan();
+                    recalcTotal();
+                    ensureTrailingEmptyRow();
+                })();
+            </script>
+        @elseif (in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'bill')
+            @php
+                $companyRows = $companies ?? collect();
+                $billStaffOptions = $billStaffOptions ?? collect();
+                $billCompanyOptions = $billCompanyOptions ?? collect();
+                $billCategoryOptions = $billCategoryOptions ?? collect();
+            @endphp
+            <div class="space-y-3 max-w-2xl">
+                <div class="flex items-center gap-3">
+                    <button
+                        type="button"
+                        id="toggle_bill_form"
+                        class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+                    >
+                        Add Company
+                    </button>
+                    <button
+                        type="button"
+                        id="open_companies_modal"
+                        class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                        View all companies
+                    </button>
+                </div>
+                <form id="bill_company_form" method="post" action="{{ route($navPrefix.'.bill.company.save') }}" class="hidden space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                    @csrf
+                    <div>
+                        <label for="company_name" class="block text-sm font-medium mb-1">Company</label>
+                        <input
+                            type="text"
+                            id="company_name"
+                            name="company_name"
+                            value="{{ old('company_name') }}"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                            required
+                        >
+                    </div>
+                    <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                        Save
+                    </button>
+                </form>
+                <form method="post" action="{{ route($navPrefix.'.bill.save') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                    @csrf
+                    <h3 class="text-sm font-semibold">Bill</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label for="bill_staff_id" class="block text-sm font-medium mb-1">Staff</label>
+                            <select id="bill_staff_id" name="staff_id" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" required>
+                                <option value="">Select staff</option>
+                                @foreach ($billStaffOptions as $staffOption)
+                                    <option value="{{ $staffOption->id }}" @selected((string) old('staff_id') === (string) $staffOption->id)>{{ $staffOption->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="bill_date" class="block text-sm font-medium mb-1">Date</label>
+                            <div id="bill_date_field" class="w-full cursor-pointer rounded-md">
+                                <input type="date" id="bill_date" name="date" value="{{ old('date', now()->toDateString()) }}" max="{{ now()->toDateString() }}" class="w-full cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" required>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="bill_company_id" class="block text-sm font-medium mb-1">Company</label>
+                            <select id="bill_company_id" name="company_id" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" required>
+                                <option value="">Select company</option>
+                                @foreach ($billCompanyOptions as $companyOption)
+                                    <option value="{{ $companyOption['id'] }}" @selected((string) old('company_id') === (string) $companyOption['id'])>{{ $companyOption['company_name'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="bill_invoice_number" class="block text-sm font-medium mb-1">Invoice number</label>
+                            <input
+                                type="text"
+                                id="bill_invoice_number"
+                                name="invoice_number"
+                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                placeholder="Enter invoice number"
+                                value="{{ old('invoice_number') }}"
+                                required
+                            >
+                        </div>
+                        <div>
+                            <label for="bill_category_id" class="block text-sm font-medium mb-1">Category</label>
+                            <select id="bill_category_id" name="category_id" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" required>
+                                <option value="">Select category</option>
+                                @foreach ($billCategoryOptions as $categoryOption)
+                                    <option value="{{ $categoryOption->id }}" @selected((string) old('category_id') === (string) $categoryOption->id)>{{ $categoryOption->category }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="bill_price" class="block text-sm font-medium mb-1">Price</label>
+                            <input type="text" id="bill_price" name="price" readonly class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-[#121212] px-3 py-2 text-sm outline-none" placeholder="Auto from date + category" value="{{ old('price') }}" required>
+                        </div>
+                        <div>
+                            <label for="bill_liters" class="block text-sm font-medium mb-1">Liter amount</label>
+                            <input type="number" id="bill_liters" name="liters" min="0" step="0.01" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" value="{{ old('liters') }}" required>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="bill_value" class="block text-sm font-medium mb-1">Bill value</label>
+                            <input type="text" id="bill_value" name="bill_value" readonly class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-[#121212] px-3 py-2 text-sm outline-none" placeholder="Auto calculated" value="{{ old('bill_value') }}" required>
+                        </div>
+                    </div>
+                    <div>
+                        <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                            Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div id="companies_modal_overlay" class="fixed inset-0 bg-black/40 hidden z-40"></div>
+            <div id="companies_modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+                <div class="w-full max-w-3xl bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+                    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                        <h3 class="text-sm font-semibold">Companies</h3>
+                        <button type="button" id="close_companies_modal" class="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs">Close</button>
+                    </div>
+                    <div class="p-4 space-y-3">
+                        <input
+                            type="text"
+                            id="companies_search"
+                            placeholder="Search company"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                        <div class="overflow-x-auto max-h-[60vh]">
+                            <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
+                                <thead class="bg-gray-100 dark:bg-gray-800">
+                                    <tr>
+                                        <th class="text-left px-3 py-2 font-semibold">Company</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="companies_rows">
+                                    @forelse ($companyRows as $companyRow)
+                                        <tr class="border-t border-gray-200 dark:border-gray-700 company-row" data-company-name="{{ mb_strtolower($companyRow->company_name) }}">
+                                            <td class="px-3 py-2 align-top">
+                                                <form method="post" action="{{ route($navPrefix.'.bill.company.update', $companyRow) }}" class="flex flex-wrap items-center gap-2">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <input
+                                                        type="text"
+                                                        name="company_name"
+                                                        value="{{ $companyRow->company_name }}"
+                                                        class="min-w-0 flex-1 basis-40 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                        required
+                                                    >
+                                                    <button type="submit" class="shrink-0 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-800">Update</button>
+                                                    <a
+                                                        href="{{ route($navPrefix.'.bill.company.report', $companyRow) }}"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        class="shrink-0 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"
+                                                    >Get report</a>
+                                                    <button
+                                                        type="button"
+                                                        class="js-open-settle-bill shrink-0 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"
+                                                    >Settle bill</button>
+                                                </form>
+                                                <form
+                                                    method="post"
+                                                    action="{{ route($navPrefix.'.bill.company.settle', $companyRow) }}"
+                                                    class="js-settle-bill-form hidden mt-2 flex flex-wrap items-center gap-2"
+                                                >
+                                                    @csrf
+                                                    <label class="inline-flex items-center gap-1 text-xs">
+                                                        <input type="checkbox" name="reset_include" value="1" class="rounded border-gray-300 dark:border-gray-600">
+                                                        <span>Including today bill</span>
+                                                    </label>
+                                                    <div class="js-settle-date-wrap rounded-md cursor-pointer">
+                                                        <input
+                                                            type="date"
+                                                            name="reset_date"
+                                                            max="{{ now()->toDateString() }}"
+                                                            required
+                                                            class="js-settle-date-field rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-2 py-1.5 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
+                                                        >
+                                                    </div>
+                                                    <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-2 py-1.5 text-xs font-medium hover:opacity-90">Save</button>
+                                                </form>
+                                            </td>
+                                            <td class="px-3 py-2 align-top">
+                                                <form method="post" action="{{ route($navPrefix.'.bill.company.delete', $companyRow) }}" onsubmit="return confirm('Delete this company?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded-md border border-red-300 text-red-700 dark:border-red-700 dark:text-red-400 px-3 py-1.5 text-xs hover:bg-red-50 dark:hover:bg-red-900/30">Delete</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr class="border-t border-gray-200 dark:border-gray-700">
+                                            <td colspan="2" class="px-3 py-3 text-sm text-[#706f6c] dark:text-[#A1A09A]">No companies added yet.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <script>
+                (function () {
+                    const openBtn = document.getElementById('open_companies_modal');
+                    const closeBtn = document.getElementById('close_companies_modal');
+                    const toggleBillFormBtn = document.getElementById('toggle_bill_form');
+                    const billCompanyForm = document.getElementById('bill_company_form');
+                    const modal = document.getElementById('companies_modal');
+                    const overlay = document.getElementById('companies_modal_overlay');
+                    const search = document.getElementById('companies_search');
+                    const rows = Array.from(document.querySelectorAll('.company-row'));
+                    if (!openBtn || !closeBtn || !modal || !overlay || !toggleBillFormBtn || !billCompanyForm) return;
+
+                    toggleBillFormBtn.addEventListener('click', () => {
+                        const hidden = billCompanyForm.classList.contains('hidden');
+                        billCompanyForm.classList.toggle('hidden', !hidden);
+                    });
+
+                    const open = () => {
+                        modal.classList.remove('hidden');
+                        modal.classList.add('flex');
+                        overlay.classList.remove('hidden');
+                        if (search) search.focus();
+                    };
+                    const close = () => {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('flex');
+                        overlay.classList.add('hidden');
+                    };
+
+                    openBtn.addEventListener('click', open);
+                    closeBtn.addEventListener('click', close);
+                    overlay.addEventListener('click', close);
+                    if (search) {
+                        search.addEventListener('input', () => {
+                            const q = search.value.trim().toLowerCase();
+                            rows.forEach((row) => {
+                                const name = row.getAttribute('data-company-name') || '';
+                                row.classList.toggle('hidden', q !== '' && !name.includes(q));
+                            });
+                        });
+                    }
+
+                    const settleButtons = Array.from(document.querySelectorAll('.js-open-settle-bill'));
+                    settleButtons.forEach((btn) => {
+                        btn.addEventListener('click', () => {
+                            const cell = btn.closest('td');
+                            if (!cell) return;
+                            const form = cell.querySelector('.js-settle-bill-form');
+                            if (!form) return;
+                            const isHidden = form.classList.contains('hidden');
+                            form.classList.toggle('hidden', !isHidden);
+                            if (isHidden) {
+                                const dateInput = form.querySelector('input[name="reset_date"]');
+                                if (dateInput instanceof HTMLInputElement) {
+                                    dateInput.focus();
+                                }
+                            }
+                        });
+                    });
+
+                    const settleDateWrappers = Array.from(document.querySelectorAll('.js-settle-date-wrap'));
+                    settleDateWrappers.forEach((wrap) => {
+                        wrap.addEventListener('click', () => {
+                            const input = wrap.querySelector('.js-settle-date-field');
+                            if (!(input instanceof HTMLInputElement)) return;
+                            if (typeof input.showPicker === 'function') {
+                                try {
+                                    input.showPicker();
+                                } catch (_) {
+                                    input.focus();
+                                }
+                            } else {
+                                input.focus();
+                            }
+                        });
+                    });
+
+                    const billDateInput = document.getElementById('bill_date');
+                    const billDateField = document.getElementById('bill_date_field');
+                    const billCategorySelect = document.getElementById('bill_category_id');
+                    const billPriceInput = document.getElementById('bill_price');
+                    const billLitersInput = document.getElementById('bill_liters');
+                    const billValueInput = document.getElementById('bill_value');
+                    const billPriceUrl = @json(route($navPrefix.'.bill.category-price'));
+
+                    const updateBillValue = () => {
+                        if (!billPriceInput || !billLitersInput || !billValueInput) return;
+                        const p = Number((billPriceInput.value || '').trim());
+                        const l = Number((billLitersInput.value || '').trim());
+                        if (!Number.isFinite(p) || !Number.isFinite(l)) {
+                            billValueInput.value = '';
+                            return;
+                        }
+                        billValueInput.value = (p * l).toFixed(2);
+                    };
+
+                    const fetchBillPrice = async () => {
+                        if (!billDateInput || !billCategorySelect || !billPriceInput) return;
+                        const date = billDateInput.value;
+                        const categoryId = billCategorySelect.value;
+                        if (!date || !categoryId) {
+                            billPriceInput.value = '';
+                            updateBillValue();
+                            return;
+                        }
+                        const url = new URL(billPriceUrl, window.location.origin);
+                        url.searchParams.set('bill_date', date);
+                        url.searchParams.set('category_id', categoryId);
+                        try {
+                            const resp = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+                            if (!resp.ok) throw new Error('Price lookup failed');
+                            const data = await resp.json();
+                            billPriceInput.value = data.price !== null && data.price !== undefined ? Number(data.price).toFixed(2) : '';
+                        } catch (e) {
+                            billPriceInput.value = '';
+                        }
+                        updateBillValue();
+                    };
+
+                    if (billDateField && billDateInput) {
+                        billDateField.addEventListener('click', () => {
+                            if (typeof billDateInput.showPicker === 'function') {
+                                try {
+                                    billDateInput.showPicker();
+                                } catch (_) {
+                                    billDateInput.focus();
+                                }
+                            } else {
+                                billDateInput.focus();
+                            }
+                        });
+                    }
+                    if (billDateInput) {
+                        billDateInput.addEventListener('change', fetchBillPrice);
+                    }
+                    if (billCategorySelect) {
+                        billCategorySelect.addEventListener('change', fetchBillPrice);
+                    }
+                    if (billLitersInput) {
+                        billLitersInput.addEventListener('input', updateBillValue);
+                    }
+                })();
+            </script>
+        @elseif ($navPrefix === 'admin' && $page === 'home')
+            @php
+                $homeRows = $homeCategoryPriceRows ?? collect();
+                $homeDate = $homePriceDate ?? now()->toDateString();
+                $homeStaffRows = $homeStaffRows ?? collect();
+            @endphp
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#161615] p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold">Today category prices</h3>
+                        <span class="text-xs text-[#706f6c] dark:text-[#A1A09A]">{{ $homeDate }}</span>
+                    </div>
+                    @if ($homeRows->isNotEmpty())
+                        <div class="space-y-2">
+                            @foreach ($homeRows as $row)
+                                <div class="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                                    <span class="text-sm font-medium">{{ $row['category'] }}</span>
+                                    <span class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                                        {{ $row['price'] !== null ? number_format((float) $row['price'], 2) : '-' }}
+                                    </span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No categories/prices available for today.</p>
+                    @endif
+                </div>
+
+                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#161615] p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold">Current staff details</h3>
+                        <span class="text-xs text-[#706f6c] dark:text-[#A1A09A]">Active: {{ $homeStaffRows->count() }}</span>
+                    </div>
+                    @if ($homeStaffRows->isNotEmpty())
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            @foreach ($homeStaffRows as $staff)
+                                <div class="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">
+                                    <span class="font-medium">{{ $staff->name }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No active staff found.</p>
+                    @endif
+                </div>
+            </div>
         @else
             <p class="text-sm">
                 This is the <strong>{{ $sectionTitle }}</strong> section. Add your content here.

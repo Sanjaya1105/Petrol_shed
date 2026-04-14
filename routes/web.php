@@ -21,6 +21,8 @@ Route::post('/s_login', [SLoginController::class, 'store'])->name('s_login.store
 Route::post('/s_logout', [SLoginController::class, 'destroy'])->middleware('auth')->name('s_logout');
 
 Route::middleware(['auth', 'role:1'])->prefix('dev')->name('dev.')->group(function () {
+    Route::get('/sales/staff-report.pdf', [RoleDashboardController::class, 'downloadAdminSalesStaffPdf'])->name('sales.staff.pdf');
+    Route::get('/sales/pumps-report.pdf', [RoleDashboardController::class, 'downloadAdminSalesPumpsPdf'])->name('sales.pumps.pdf');
     Route::post('/categories', [RoleDashboardController::class, 'storeDevCategory'])->name('categories.store');
     Route::put('/categories/{category}', [RoleDashboardController::class, 'updateDevCategory'])->name('categories.update');
     Route::delete('/categories/{category}', [RoleDashboardController::class, 'deleteDevCategory'])->name('categories.delete');
@@ -32,7 +34,7 @@ Route::middleware(['auth', 'role:1'])->prefix('dev')->name('dev.')->group(functi
     Route::delete('/pumps/{pump}', [RoleDashboardController::class, 'deleteDevPump'])->name('pumps.delete');
     Route::post('/prices', [RoleDashboardController::class, 'saveDevPrices'])->name('prices.save');
     Route::get('/{page}', [RoleDashboardController::class, 'showDev'])
-        ->where('page', 'home|categories|pumps|tanks|price')
+        ->where('page', 'home|categories|pumps|tanks|price|sales|theme')
         ->name('show');
 });
 
@@ -45,13 +47,33 @@ Route::middleware(['auth', 'role:2'])->prefix('admin')->name('admin.')->group(fu
     Route::post('/pumps/{pump}/sale', [RoleDashboardController::class, 'saveAdminPumpSale'])->name('pumps.sale.save');
     Route::get('/pumps/{pump}/sale-prefill', [RoleDashboardController::class, 'prefillAdminPumpSale'])->name('pumps.sale.prefill');
     Route::post('/tanks/{tank}/restock', [RoleDashboardController::class, 'restockAdminTank'])->name('tanks.restock');
+    Route::post('/cash-rec', [RoleDashboardController::class, 'saveAdminCashRec'])->name('cash-rec.save');
+    Route::delete('/cash-rec/{cashCollection}', [RoleDashboardController::class, 'deleteAdminCashRec'])->name('cash-rec.delete');
+    Route::post('/bill/company', [RoleDashboardController::class, 'saveAdminCompany'])->name('bill.company.save');
+    Route::put('/bill/company/{company}', [RoleDashboardController::class, 'updateAdminCompany'])->name('bill.company.update');
+    Route::delete('/bill/company/{company}', [RoleDashboardController::class, 'deleteAdminCompany'])->name('bill.company.delete');
+    Route::get('/bill/company/{company}/report.pdf', [RoleDashboardController::class, 'downloadAdminCompanyBillsPdf'])->name('bill.company.report');
+    Route::post('/bill/company/{company}/settle', [RoleDashboardController::class, 'settleAdminCompany'])->name('bill.company.settle');
+    Route::post('/bill', [RoleDashboardController::class, 'saveAdminBill'])->name('bill.save');
+    Route::get('/bill/category-price', [RoleDashboardController::class, 'getAdminBillCategoryPrice'])->name('bill.category-price');
     Route::get('/{page}', [RoleDashboardController::class, 'showAdmin'])
-        ->where('page', 'home|categories|pumps|tanks|price|staff|sales')
+        ->where('page', 'home|categories|pumps|tanks|price|staff|sales|cash-rec|bill')
         ->name('show');
 });
 
 Route::middleware(['auth', 'role:3'])->prefix('data-entry')->name('data-entry.')->group(function () {
+    Route::get('/sales/staff-report.pdf', [RoleDashboardController::class, 'downloadAdminSalesStaffPdf'])->name('sales.staff.pdf');
+    Route::get('/sales/pumps-report.pdf', [RoleDashboardController::class, 'downloadAdminSalesPumpsPdf'])->name('sales.pumps.pdf');
+    Route::post('/cash-rec', [RoleDashboardController::class, 'saveDataEntryCashRec'])->name('cash-rec.save');
+    Route::delete('/cash-rec/{cashCollection}', [RoleDashboardController::class, 'deleteDataEntryCashRec'])->name('cash-rec.delete');
+    Route::post('/bill/company', [RoleDashboardController::class, 'saveDataEntryCompany'])->name('bill.company.save');
+    Route::put('/bill/company/{company}', [RoleDashboardController::class, 'updateDataEntryCompany'])->name('bill.company.update');
+    Route::delete('/bill/company/{company}', [RoleDashboardController::class, 'deleteDataEntryCompany'])->name('bill.company.delete');
+    Route::get('/bill/company/{company}/report.pdf', [RoleDashboardController::class, 'downloadDataEntryCompanyBillsPdf'])->name('bill.company.report');
+    Route::post('/bill/company/{company}/settle', [RoleDashboardController::class, 'settleDataEntryCompany'])->name('bill.company.settle');
+    Route::post('/bill', [RoleDashboardController::class, 'saveDataEntryBill'])->name('bill.save');
+    Route::get('/bill/category-price', [RoleDashboardController::class, 'getDataEntryBillCategoryPrice'])->name('bill.category-price');
     Route::get('/{page}', [RoleDashboardController::class, 'showDataEntry'])
-        ->where('page', 'home|categories|pumps|tanks|price')
+        ->where('page', 'home|categories|pumps|tanks|price|sales|cash-rec|bill')
         ->name('show');
 });

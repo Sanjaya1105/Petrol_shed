@@ -3,6 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Bill;
+use App\Models\BillReset;
+use App\Models\CashCollection;
+use App\Models\Company;
 use App\Models\Price;
 use App\Models\Pump;
 use App\Models\Sale;
@@ -29,6 +33,9 @@ class RoleDashboardController extends Controller
         'price' => 'Price',
         'staff' => 'Staff',
         'sales' => 'Sales',
+        'cash-rec' => 'Cash Rec',
+        'bill' => 'Bill',
+        'theme' => 'Theme',
     ];
 
     public function showDev(string $page): View
@@ -38,14 +45,14 @@ class RoleDashboardController extends Controller
 
     public function showAdmin(Request $request, string $page): View
     {
-        abort_unless(in_array($page, ['home', 'categories', 'pumps', 'tanks', 'price', 'staff', 'sales'], true), 404);
+        abort_unless(in_array($page, ['home', 'categories', 'pumps', 'tanks', 'price', 'staff', 'sales', 'cash-rec', 'bill'], true), 404);
 
         return $this->renderPage('admin', 'Admin', $page, $request);
     }
 
-    public function showDataEntry(string $page): View
+    public function showDataEntry(Request $request, string $page): View
     {
-        return $this->renderPage('data-entry', 'Data-entry', $page, null);
+        return $this->renderPage('data-entry', 'Data-entry', $page, $request);
     }
 
     public function downloadAdminSalesStaffPdf(Request $request)
@@ -54,16 +61,38 @@ class RoleDashboardController extends Controller
         $pumps = Pump::query()->orderBy('id')->get();
         $prices = $this->pricesLookupForReportDate($salesData['salesReportDate']);
         $staffMembers = Staff::query()->orderBy('id')->get();
+        $cashByStaffId = CashCollection::query()
+            ->whereDate('date', $salesData['salesReportDate'])
+            ->where('category', 'cash')
+            ->select('staff_id', DB::raw('SUM(cash_total) as total_cash'))
+            ->groupBy('staff_id')
+            ->pluck('total_cash', 'staff_id');
+        $cashCategoryTotalsByStaff = CashCollection::query()
+            ->whereDate('date', $salesData['salesReportDate'])
+            ->select('staff_id', 'category', DB::raw('SUM(cash_total) as total_cash'))
+            ->groupBy('staff_id', 'category')
+            ->get()
+            ->groupBy('staff_id')
+            ->map(fn ($rows) => $rows->pluck('total_cash', 'category'));
+        $billAmountByStaffId = Bill::query()
+            ->whereDate('date', $salesData['salesReportDate'])
+            ->select('staff_id', DB::raw('SUM(bill_value) as total_bills'))
+            ->groupBy('staff_id')
+            ->pluck('total_bills', 'staff_id');
 
         $staffPdfPayload = $this->buildStaffSalePdfTablePayload(
             $salesData['sales'],
             $salesData['priorDaySalesByPump'],
             $pumps,
             $prices,
-            $staffMembers
+            $staffMembers,
+            $cashByStaffId,
+            $cashCategoryTotalsByStaff,
+            $billAmountByStaffId
         );
 
         $reportCarbon = Carbon::parse($salesData['salesReportDate']);
+        $logoDataUri = $this->salesPdfLogoDataUri();
 
         /** @var \Barryvdh\DomPDF\PDF $pdf */
         $pdf = app('dompdf.wrapper');
@@ -77,6 +106,7 @@ class RoleDashboardController extends Controller
                 'grandTotalFormatted' => $staffPdfPayload['grandTotalFormatted'],
                 'showGrandTotal' => $staffPdfPayload['showGrandTotal'],
                 'showReportTable' => $pumps->isNotEmpty(),
+                'logoDataUri' => $logoDataUri,
             ])
             ->setPaper('a4', 'landscape')
             ->download('sales-staff-'.$salesData['salesReportDate'].'.pdf');
@@ -98,6 +128,7 @@ class RoleDashboardController extends Controller
         );
 
         $reportCarbon = Carbon::parse($salesData['salesReportDate']);
+        $logoDataUri = $this->salesPdfLogoDataUri();
 
         /** @var \Barryvdh\DomPDF\PDF $pdf */
         $pdf = app('dompdf.wrapper');
@@ -111,6 +142,7 @@ class RoleDashboardController extends Controller
                 'grandTotalFormatted' => $pumpsPdf['grandTotalFormatted'],
                 'showGrandTotal' => $pumpsPdf['showGrandTotal'],
                 'showReportTable' => $pumps->isNotEmpty(),
+                'logoDataUri' => $logoDataUri,
             ])
             ->setPaper('a4', 'landscape')
             ->download('sales-pumps-'.$salesData['salesReportDate'].'.pdf');
@@ -273,6 +305,96 @@ class RoleDashboardController extends Controller
         return $this->saveRolePrices($request, 'admin');
     }
 
+    public function saveAdminCashRec(Request $request): RedirectResponse
+    {
+        return $this->saveRoleCashRec($request, 'admin');
+    }
+
+    public function saveDataEntryCashRec(Request $request): RedirectResponse
+    {
+        return $this->saveRoleCashRec($request, 'data-entry');
+    }
+
+    public function deleteAdminCashRec(Request $request, CashCollection $cashCollection): RedirectResponse
+    {
+        return $this->deleteRoleCashRec($request, $cashCollection, 'admin');
+    }
+
+    public function deleteDataEntryCashRec(Request $request, CashCollection $cashCollection): RedirectResponse
+    {
+        return $this->deleteRoleCashRec($request, $cashCollection, 'data-entry');
+    }
+
+    public function saveAdminCompany(Request $request): RedirectResponse
+    {
+        return $this->saveRoleCompany($request, 'admin');
+    }
+
+    public function saveDataEntryCompany(Request $request): RedirectResponse
+    {
+        return $this->saveRoleCompany($request, 'data-entry');
+    }
+
+    public function saveAdminBill(Request $request): RedirectResponse
+    {
+        return $this->saveRoleBill($request, 'admin');
+    }
+
+    public function saveDataEntryBill(Request $request): RedirectResponse
+    {
+        return $this->saveRoleBill($request, 'data-entry');
+    }
+
+    public function getAdminBillCategoryPrice(Request $request): JsonResponse
+    {
+        return $this->getRoleBillCategoryPrice($request);
+    }
+
+    public function getDataEntryBillCategoryPrice(Request $request): JsonResponse
+    {
+        return $this->getRoleBillCategoryPrice($request);
+    }
+
+    public function updateAdminCompany(Request $request, Company $company): RedirectResponse
+    {
+        return $this->updateRoleCompany($request, $company, 'admin');
+    }
+
+    public function updateDataEntryCompany(Request $request, Company $company): RedirectResponse
+    {
+        return $this->updateRoleCompany($request, $company, 'data-entry');
+    }
+
+    public function deleteAdminCompany(Company $company): RedirectResponse
+    {
+        return $this->deleteRoleCompany($company, 'admin');
+    }
+
+    public function deleteDataEntryCompany(Company $company): RedirectResponse
+    {
+        return $this->deleteRoleCompany($company, 'data-entry');
+    }
+
+    public function downloadAdminCompanyBillsPdf(Company $company)
+    {
+        return $this->downloadRoleCompanyBillsPdf($company);
+    }
+
+    public function downloadDataEntryCompanyBillsPdf(Company $company)
+    {
+        return $this->downloadRoleCompanyBillsPdf($company);
+    }
+
+    public function settleAdminCompany(Request $request, Company $company): RedirectResponse
+    {
+        return $this->settleRoleCompany($request, $company, 'admin');
+    }
+
+    public function settleDataEntryCompany(Request $request, Company $company): RedirectResponse
+    {
+        return $this->settleRoleCompany($request, $company, 'data-entry');
+    }
+
     public function storeAdminStaff(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -305,14 +427,23 @@ class RoleDashboardController extends Controller
             ->with('status', 'Staff added successfully.');
     }
 
-    public function deleteAdminStaff(Staff $staff): RedirectResponse
+    public function deleteAdminStaff(Request $request, Staff $staff): RedirectResponse
     {
         $staff->update([
             'is_active' => false,
         ]);
 
+        $query = array_filter([
+            'staff_page' => $request->input('staff_page'),
+        ], fn ($v) => is_string($v) ? $v !== '' : $v !== null);
+
+        $back = route('admin.show', ['page' => 'staff']);
+        if (count($query) > 0) {
+            $back .= '?'.http_build_query($query);
+        }
+
         return redirect()
-            ->route('admin.show', ['page' => 'staff'])
+            ->to($back)
             ->with('status', 'Staff removed successfully.');
     }
 
@@ -444,28 +575,58 @@ class RoleDashboardController extends Controller
         $prices = null;
         $priceFormDate = null;
         $priceDateMax = null;
+        $homePriceDate = null;
+        $homeCategoryPriceRows = collect();
+        $homeStaffRows = collect();
         if (in_array($navPrefix, ['dev', 'admin'], true) && $page === 'price') {
             $priceFormDate = $this->resolvePriceFormDate($request);
             $priceDateMax = now()->toDateString();
             $prices = $this->pricesForFormDate($priceFormDate);
         }
+        if ($navPrefix === 'admin' && $page === 'home') {
+            $homePriceDate = now()->toDateString();
+            $categories = Category::query()->orderBy('id')->get();
+            $todayPrices = $this->pricesLookupForReportDate($homePriceDate);
+            $homeCategoryPriceRows = $categories->map(function ($category) use ($todayPrices) {
+                $price = $todayPrices->get($category->id);
+                if ($price === null) {
+                    $price = $todayPrices->get((string) $category->id);
+                }
+
+                return [
+                    'id' => $category->id,
+                    'category' => $category->category,
+                    'price' => $price !== null ? (float) $price : null,
+                ];
+            });
+            $homeStaffRows = Staff::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        }
 
         $pumps = null;
         if (
-            ($navPrefix === 'dev' && $page === 'pumps') ||
-            ($navPrefix === 'admin' && in_array($page, ['pumps', 'tanks', 'sales'], true))
+            ($navPrefix === 'dev' && in_array($page, ['pumps', 'sales'], true)) ||
+            (in_array($navPrefix, ['admin', 'data-entry'], true) && in_array($page, ['pumps', 'tanks', 'sales'], true))
         ) {
             $pumps = Pump::query()->orderBy('id')->get();
         }
 
         $staffMembers = null;
-        if ($navPrefix === 'admin' && in_array($page, ['staff', 'pumps'], true)) {
+        if ($navPrefix === 'admin' && $page === 'staff') {
+            $staffMembers = Staff::query()
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->paginate(8, ['*'], 'staff_page')
+                ->withQueryString();
+        } elseif ($navPrefix === 'admin' && $page === 'pumps') {
             $staffMembers = Staff::query()
                 ->where('is_active', true)
                 ->orderBy('id')
                 ->get();
         }
-        if ($navPrefix === 'admin' && $page === 'sales') {
+        if (in_array($navPrefix, ['admin', 'dev', 'data-entry'], true) && $page === 'sales') {
             $staffMembers = Staff::query()
                 ->orderBy('id')
                 ->get();
@@ -494,7 +655,10 @@ class RoleDashboardController extends Controller
         $salesReportDate = null;
         $salesDatePickerMax = null;
         $salesView = 'staff';
-        if ($navPrefix === 'admin' && $page === 'sales') {
+        $cashByStaffId = collect();
+        $cashCategoryTotalsByStaff = collect();
+        $billAmountByStaffId = collect();
+        if (in_array($navPrefix, ['admin', 'dev', 'data-entry'], true) && $page === 'sales') {
             $yesterday = now()->subDay()->toDateString();
             $salesDatePickerMax = $yesterday;
 
@@ -505,6 +669,129 @@ class RoleDashboardController extends Controller
             $sales = $salesData['sales'];
             $priorDaySalesByPump = $salesData['priorDaySalesByPump'];
             $prices = $this->pricesLookupForReportDate($salesReportDate);
+            $cashByStaffId = CashCollection::query()
+                ->whereDate('date', $salesReportDate)
+                ->where('category', 'cash')
+                ->select('staff_id', DB::raw('SUM(cash_total) as total_cash'))
+                ->groupBy('staff_id')
+                ->pluck('total_cash', 'staff_id');
+            $cashCategoryTotalsByStaff = CashCollection::query()
+                ->whereDate('date', $salesReportDate)
+                ->select('staff_id', 'category', DB::raw('SUM(cash_total) as total_cash'))
+                ->groupBy('staff_id', 'category')
+                ->get()
+                ->groupBy('staff_id')
+                ->map(fn ($rows) => $rows->pluck('total_cash', 'category'));
+            $billAmountByStaffId = Bill::query()
+                ->whereDate('date', $salesReportDate)
+                ->select('staff_id', DB::raw('SUM(bill_value) as total_bills'))
+                ->groupBy('staff_id')
+                ->pluck('total_bills', 'staff_id');
+        }
+
+        $cashRecDate = null;
+        $cashRecDateMax = null;
+        $cashRecStaffOptions = collect();
+        $cashRecCategoryOptions = [
+            'cash' => 'Cash',
+            'visa-master' => 'Visa/Master',
+            'amex' => 'Amex',
+        ];
+        $cashRecSelectedCategory = 'cash';
+        $cashRecExistingValues = [];
+        $cashRecExistingTotal = null;
+        $cashRecHistoryDate = null;
+        $cashRecRecords = collect();
+        $companies = collect();
+        $billStaffOptions = collect();
+        $billCompanyOptions = collect();
+        $billCategoryOptions = collect();
+        if ($request !== null && in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'cash-rec') {
+            $today = now()->startOfDay();
+            $cashRecDateMax = $today->toDateString();
+            $cashRecDate = $cashRecDateMax;
+            $cashRecHistoryDate = $today->copy()->subDay()->toDateString();
+
+            $picked = $request->query('cash_date');
+            if (is_string($picked) && $picked !== '') {
+                try {
+                    $candidate = Carbon::parse($picked)->startOfDay();
+                    if ($candidate->lte($today)) {
+                        $cashRecDate = $candidate->toDateString();
+                    }
+                } catch (\Throwable) {
+                    // keep default (today)
+                }
+            }
+            $pickedHistory = $request->query('cash_history_date');
+            if (is_string($pickedHistory) && $pickedHistory !== '') {
+                try {
+                    $candidate = Carbon::parse($pickedHistory)->startOfDay();
+                    if ($candidate->lte($today)) {
+                        $cashRecHistoryDate = $candidate->toDateString();
+                    }
+                } catch (\Throwable) {
+                    // keep default (yesterday)
+                }
+            }
+            $cashRecStaffOptions = Staff::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'is_active']);
+
+            $pickedStaffId = $request->query('cash_staff_id');
+            $pickedCategory = $request->query('cash_category');
+            if (is_string($pickedCategory) && array_key_exists($pickedCategory, $cashRecCategoryOptions)) {
+                $cashRecSelectedCategory = $pickedCategory;
+            }
+            if (is_string($pickedStaffId) && $pickedStaffId !== '') {
+                $existingRow = CashCollection::query()
+                    ->where('staff_id', (int) $pickedStaffId)
+                    ->whereDate('date', $cashRecDate)
+                    ->where('category', $cashRecSelectedCategory)
+                    ->first();
+                if ($existingRow !== null) {
+                    $vals = $existingRow->cash_values;
+                    if (is_array($vals)) {
+                        $cashRecExistingValues = collect($vals)
+                            ->map(function ($v) {
+                                if (is_array($v)) {
+                                    return is_numeric($v['amount'] ?? null)
+                                        ? number_format((float) $v['amount'], 2, '.', '')
+                                        : '';
+                                }
+
+                                return is_numeric($v) ? number_format((float) $v, 2, '.', '') : '';
+                            })
+                            ->filter(fn ($v) => $v !== '')
+                            ->values()
+                            ->all();
+                    }
+                    if (count($cashRecExistingValues) === 0) {
+                        $cashRecExistingValues = [number_format((float) ($existingRow->cash_total ?? 0), 2, '.', '')];
+                    }
+                    $cashRecExistingTotal = $existingRow->cash_total !== null
+                        ? number_format((float) $existingRow->cash_total, 2, '.', '')
+                        : null;
+                }
+            }
+
+            $cashRecQuery = CashCollection::query()
+                ->with('staff')
+                ->whereDate('date', $cashRecHistoryDate)
+                ->orderByDesc('id');
+            $cashRecRecords = $cashRecQuery
+                ->paginate(5, ['*'], 'cash_history_page')
+                ->withQueryString();
+        }
+        if ($request !== null && in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'bill') {
+            $companies = Company::query()->orderBy('company_name')->orderBy('id')->get();
+            $billStaffOptions = Staff::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+            $billCompanyOptions = $companies->map(fn ($c) => ['id' => $c->id, 'company_name' => $c->company_name]);
+            $billCategoryOptions = Category::query()->orderBy('category')->get(['id', 'category']);
         }
 
         return view('dashboard.page', [
@@ -525,6 +812,25 @@ class RoleDashboardController extends Controller
             'salesReportDate' => $salesReportDate,
             'salesDatePickerMax' => $salesDatePickerMax,
             'salesView' => $salesView,
+            'cashByStaffId' => $cashByStaffId,
+            'cashCategoryTotalsByStaff' => $cashCategoryTotalsByStaff,
+            'billAmountByStaffId' => $billAmountByStaffId,
+            'cashRecDate' => $cashRecDate,
+            'cashRecDateMax' => $cashRecDateMax,
+            'cashRecStaffOptions' => $cashRecStaffOptions,
+            'cashRecCategoryOptions' => $cashRecCategoryOptions,
+            'cashRecSelectedCategory' => $cashRecSelectedCategory,
+            'cashRecExistingValues' => $cashRecExistingValues,
+            'cashRecExistingTotal' => $cashRecExistingTotal,
+            'cashRecHistoryDate' => $cashRecHistoryDate,
+            'cashRecRecords' => $cashRecRecords,
+            'companies' => $companies,
+            'billStaffOptions' => $billStaffOptions,
+            'billCompanyOptions' => $billCompanyOptions,
+            'billCategoryOptions' => $billCategoryOptions,
+            'homePriceDate' => $homePriceDate,
+            'homeCategoryPriceRows' => $homeCategoryPriceRows,
+            'homeStaffRows' => $homeStaffRows,
         ]);
     }
 
@@ -568,9 +874,9 @@ class RoleDashboardController extends Controller
     }
 
     /**
-     * Staff-sale PDF: one block per staff (rowspan), sub-rows per pump — mirrors on-screen Staff sale.
+     * Staff-sale PDF: one separate table per staff with summary columns.
      *
-     * @return array{groups: list<array{staff: string, lines: list<array<string, string>>}>, grandTotalFormatted: string|null, showGrandTotal: bool}
+     * @return array{groups: list<array{staff: string, lines: list<array<string, string>>, group_total: string, cash_total: string, visa_master_total: string, amex_total: string, bill_amount: string, short_total: string}>, grandTotalFormatted: string|null, showGrandTotal: bool}
      */
     private function buildStaffSalePdfTablePayload(
         Collection $sales,
@@ -578,6 +884,9 @@ class RoleDashboardController extends Controller
         Collection $pumps,
         Collection $prices,
         Collection $staffMembers,
+        Collection $cashByStaffId,
+        Collection $cashCategoryTotalsByStaff,
+        Collection $billAmountByStaffId,
     ): array {
         if ($pumps->isEmpty()) {
             return [
@@ -674,7 +983,14 @@ class RoleDashboardController extends Controller
         foreach ($sortedKeys as $key) {
             $items = $grouped->get($key)->sortBy('pump_name', SORT_NATURAL)->values();
             $lines = [];
+            $groupTotal = 0.0;
             foreach ($items as $row) {
+                $lineTotalNumeric = is_numeric(str_replace(',', '', (string) $row['line_total']))
+                    ? (float) str_replace(',', '', (string) $row['line_total'])
+                    : null;
+                if ($lineTotalNumeric !== null) {
+                    $groupTotal += $lineTotalNumeric;
+                }
                 $lines[] = [
                     'pump_name' => $row['pump_name'],
                     'starting' => $row['starting'],
@@ -684,9 +1000,41 @@ class RoleDashboardController extends Controller
                     'line_total' => $row['line_total'],
                 ];
             }
+            $cashTotal = null;
+            $visaMasterTotal = null;
+            $amexTotal = null;
+            $billAmountTotal = null;
+            $shortTotal = null;
+            if ($key !== '') {
+                $cashTotal = $cashByStaffId->get((int) $key);
+                if ($cashTotal === null) {
+                    $cashTotal = $cashByStaffId->get((string) $key);
+                }
+                $categoryTotals = $cashCategoryTotalsByStaff->get((int) $key) ?? $cashCategoryTotalsByStaff->get((string) $key);
+                if ($categoryTotals !== null) {
+                    $visaMasterTotal = $categoryTotals->get('visa-master');
+                    $amexTotal = $categoryTotals->get('amex');
+                }
+                $billAmountTotal = $billAmountByStaffId->get((int) $key);
+                if ($billAmountTotal === null) {
+                    $billAmountTotal = $billAmountByStaffId->get((string) $key);
+                }
+                $shortTotal = $groupTotal - (
+                    (float) ($cashTotal ?? 0)
+                    + (float) ($visaMasterTotal ?? 0)
+                    + (float) ($amexTotal ?? 0)
+                    + (float) ($billAmountTotal ?? 0)
+                );
+            }
             $groups[] = [
                 'staff' => $items->first()['staff'],
                 'lines' => $lines,
+                'group_total' => number_format((float) $groupTotal, 2),
+                'cash_total' => $cashTotal !== null ? number_format((float) $cashTotal, 2) : '-',
+                'visa_master_total' => $visaMasterTotal !== null ? number_format((float) $visaMasterTotal, 2) : '-',
+                'amex_total' => $amexTotal !== null ? number_format((float) $amexTotal, 2) : '-',
+                'bill_amount' => $billAmountTotal !== null ? number_format((float) $billAmountTotal, 2) : '-',
+                'short_total' => $shortTotal !== null ? number_format((float) $shortTotal, 2) : '-',
             ];
         }
 
@@ -882,5 +1230,282 @@ class RoleDashboardController extends Controller
         return redirect()
             ->to($back)
             ->with('status', 'Prices saved successfully.');
+    }
+
+    private function saveRoleCashRec(Request $request, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'cash_date' => ['required', 'date', 'before_or_equal:today'],
+            'cash_staff_id' => ['required', 'integer', Rule::exists('staff', 'id')->where('is_active', true)],
+            'cash_category' => ['required', Rule::in(['cash', 'visa-master', 'amex'])],
+            'cash_values' => ['required', 'array'],
+            'cash_values.*' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $date = Carbon::parse($validated['cash_date'])->toDateString();
+        $staffId = (int) $validated['cash_staff_id'];
+        $selectedCategory = (string) $validated['cash_category'];
+        $rawValues = $validated['cash_values'] ?? [];
+        $entries = collect($rawValues)
+            ->map(function ($v) use ($selectedCategory) {
+                $amountRaw = $v === null ? '' : trim((string) $v);
+                if ($amountRaw === '') {
+                    return null;
+                }
+
+                return [
+                    'category' => $selectedCategory,
+                    'amount' => round((float) $amountRaw, 2),
+                ];
+            })
+            ->filter(fn ($row) => $row !== null)
+            ->values();
+
+        if ($selectedCategory === 'cash') {
+            $entries = $entries->take(3);
+        } else {
+            $first = $entries->first();
+            $entries = $first !== null ? collect([$first]) : collect();
+        }
+
+        if ($entries->count() === 0) {
+            throw ValidationException::withMessages([
+                'cash_values' => 'Enter at least one cash amount.',
+            ]);
+        }
+        $entriesArray = $entries->all();
+
+        CashCollection::query()->updateOrCreate(
+            [
+                'staff_id' => $staffId,
+                'date' => $date,
+                'category' => $selectedCategory,
+            ],
+            [
+                'cash_total' => (float) collect($entriesArray)->sum(fn ($row) => (float) $row['amount']),
+                'cash_values' => array_map(
+                    fn ($entry) => ['category' => $selectedCategory, 'amount' => (float) $entry['amount']],
+                    $entriesArray
+                ),
+            ]
+        );
+
+        $back = route($rolePrefix.'.show', ['page' => 'cash-rec']).'?'.http_build_query([
+            'cash_date' => $date,
+            'cash_staff_id' => $staffId,
+            'cash_category' => $selectedCategory,
+        ]);
+
+        return redirect()
+            ->to($back)
+            ->with('status', 'Cash record saved successfully.');
+    }
+
+    private function deleteRoleCashRec(Request $request, CashCollection $cashCollection, string $rolePrefix): RedirectResponse
+    {
+        $cashCollection->delete();
+
+        $query = array_filter([
+            'cash_date' => $request->input('cash_date'),
+            'cash_staff_id' => $request->input('cash_staff_id'),
+            'cash_category' => $request->input('cash_category'),
+            'cash_history_date' => $request->input('cash_history_date'),
+            'cash_history_page' => $request->input('cash_history_page'),
+        ], fn ($v) => is_string($v) ? $v !== '' : $v !== null);
+
+        $back = route($rolePrefix.'.show', ['page' => 'cash-rec']);
+        if (count($query) > 0) {
+            $back .= '?'.http_build_query($query);
+        }
+
+        return redirect()
+            ->to($back)
+            ->with('status', 'Cash record deleted successfully.');
+    }
+
+    private function saveRoleCompany(Request $request, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'company_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        Company::query()->create([
+            'company_name' => trim($validated['company_name']),
+        ]);
+
+        return redirect()
+            ->route($rolePrefix.'.show', ['page' => 'bill'])
+            ->with('status', 'Company saved successfully.');
+    }
+
+    private function getRoleBillCategoryPrice(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'bill_date' => ['required', 'date'],
+            'category_id' => ['required', 'integer', 'exists:category,id'],
+        ]);
+
+        $reportDate = Carbon::parse($validated['bill_date'])->toDateString();
+        $prices = $this->pricesLookupForReportDate($reportDate);
+        $price = $prices->get((int) $validated['category_id']) ?? $prices->get((string) $validated['category_id']);
+
+        return response()->json([
+            'price' => $price !== null ? (float) $price : null,
+        ]);
+    }
+
+    private function saveRoleBill(Request $request, string $rolePrefix): RedirectResponse
+    {
+        $request->merge([
+            'invoice_number' => trim((string) $request->input('invoice_number')),
+        ]);
+
+        $validated = $request->validate([
+            'staff_id' => ['required', 'integer', 'exists:staff,id'],
+            'date' => ['required', 'date'],
+            'company_id' => ['required', 'integer', 'exists:company,id'],
+            'invoice_number' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('bill', 'invoice_number')->where(function ($query) use ($request) {
+                    return $query
+                        ->where('company_id', (int) $request->input('company_id'))
+                        ->where('date', Carbon::parse((string) $request->input('date'))->toDateString());
+                }),
+            ],
+            'category_id' => ['required', 'integer', 'exists:category,id'],
+            'price' => ['required', 'numeric', 'min:0'],
+            'liters' => ['required', 'numeric', 'gt:0'],
+            'bill_value' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        Bill::query()->create([
+            'staff_id' => (int) $validated['staff_id'],
+            'date' => Carbon::parse($validated['date'])->toDateString(),
+            'company_id' => (int) $validated['company_id'],
+            'invoice_number' => trim($validated['invoice_number']),
+            'category_id' => (int) $validated['category_id'],
+            'price' => (float) $validated['price'],
+            'liters' => (float) $validated['liters'],
+            'bill_value' => (float) $validated['bill_value'],
+        ]);
+
+        return redirect()
+            ->route($rolePrefix.'.show', ['page' => 'bill'])
+            ->with('status', 'Bill saved successfully.');
+    }
+
+    private function updateRoleCompany(Request $request, Company $company, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'company_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $company->update([
+            'company_name' => trim($validated['company_name']),
+        ]);
+
+        return redirect()
+            ->route($rolePrefix.'.show', ['page' => 'bill'])
+            ->with('status', 'Company updated successfully.');
+    }
+
+    private function deleteRoleCompany(Company $company, string $rolePrefix): RedirectResponse
+    {
+        $company->delete();
+
+        return redirect()
+            ->route($rolePrefix.'.show', ['page' => 'bill'])
+            ->with('status', 'Company deleted successfully.');
+    }
+
+    private function downloadRoleCompanyBillsPdf(Company $company)
+    {
+        $today = now()->toDateString();
+        $latestReset = BillReset::query()
+            ->where('company_id', $company->id)
+            ->whereDate('reset_date', '<=', $today)
+            ->orderByDesc('reset_date')
+            ->orderByDesc('id')
+            ->first();
+
+        $billsQuery = Bill::query()
+            ->where('company_id', $company->id)
+            ->with(['staff', 'category']);
+
+        if ($latestReset !== null) {
+            $resetDate = Carbon::parse($latestReset->reset_date)->toDateString();
+            if ((int) $latestReset->reset_include === 1) {
+                // include only after reset date (exclude reset date)
+                $billsQuery->whereDate('date', '>', $resetDate);
+            } else {
+                // include from reset date (include reset date)
+                $billsQuery->whereDate('date', '>=', $resetDate);
+            }
+            $billsQuery->whereDate('date', '<=', $today);
+        }
+
+        $bills = $billsQuery
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->get();
+
+        $total = (float) $bills->sum(fn (Bill $b) => (float) $b->bill_value);
+
+        /** @var \Barryvdh\DomPDF\PDF $pdf */
+        $pdf = app('dompdf.wrapper');
+
+        return $pdf
+            ->loadView('pdf.company-bills', [
+                'companyName' => $company->company_name,
+                'bills' => $bills,
+                'totalFormatted' => number_format($total, 2),
+                'showRows' => $bills->isNotEmpty(),
+                'generatedAt' => now()->format('Y-m-d H:i'),
+            ])
+            ->setPaper('a4', 'landscape')
+            ->download($this->companyBillsPdfFilename($company));
+    }
+
+    private function companyBillsPdfFilename(Company $company): string
+    {
+        $slug = preg_replace('/[^a-zA-Z0-9_-]+/', '-', trim($company->company_name));
+        $slug = trim((string) $slug, '-') ?: 'company';
+
+        return 'company-bills-'.$company->id.'-'.$slug.'.pdf';
+    }
+
+    private function settleRoleCompany(Request $request, Company $company, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reset_date' => ['required', 'date', 'before_or_equal:today'],
+            'reset_include' => ['nullable', 'boolean'],
+        ]);
+
+        BillReset::query()->create([
+            'company_id' => $company->id,
+            'reset_date' => Carbon::parse($validated['reset_date'])->toDateString(),
+            'reset_include' => $request->boolean('reset_include') ? 1 : 0,
+        ]);
+
+        return redirect()
+            ->route($rolePrefix.'.show', ['page' => 'bill'])
+            ->with('status', 'Bill settle record saved for '.$company->company_name.'.');
+    }
+
+    private function salesPdfLogoDataUri(): ?string
+    {
+        $logoPath = public_path('img/logo.png');
+        if (!is_file($logoPath)) {
+            return null;
+        }
+
+        $contents = @file_get_contents($logoPath);
+        if ($contents === false) {
+            return null;
+        }
+
+        return 'data:image/png;base64,'.base64_encode($contents);
     }
 }
