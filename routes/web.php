@@ -64,6 +64,8 @@ Route::middleware(['auth', 'role:2'])->prefix('admin')->name('admin.')->group(fu
 Route::middleware(['auth', 'role:3'])->prefix('data-entry')->name('data-entry.')->group(function () {
     Route::get('/sales/staff-report.pdf', [RoleDashboardController::class, 'downloadAdminSalesStaffPdf'])->name('sales.staff.pdf');
     Route::get('/sales/pumps-report.pdf', [RoleDashboardController::class, 'downloadAdminSalesPumpsPdf'])->name('sales.pumps.pdf');
+    Route::post('/pumps/{pump}/sale', [RoleDashboardController::class, 'saveDataEntryPumpSale'])->name('pumps.sale.save');
+    Route::get('/pumps/{pump}/sale-prefill', [RoleDashboardController::class, 'prefillDataEntryPumpSale'])->name('pumps.sale.prefill');
     Route::post('/cash-rec', [RoleDashboardController::class, 'saveDataEntryCashRec'])->name('cash-rec.save');
     Route::delete('/cash-rec/{cashCollection}', [RoleDashboardController::class, 'deleteDataEntryCashRec'])->name('cash-rec.delete');
     Route::post('/bill/company', [RoleDashboardController::class, 'saveDataEntryCompany'])->name('bill.company.save');

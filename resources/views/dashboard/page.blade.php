@@ -358,7 +358,7 @@
                     if (overlay) overlay.addEventListener('click', closeModal);
                 })();
             </script>
-        @elseif ($navPrefix === 'admin' && $page === 'pumps')
+        @elseif (in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'pumps')
             <div class="bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
                 <h3 class="text-sm font-semibold mb-1">Available pumps</h3>
                 <p class="text-xs text-[#706f6c] dark:text-[#A1A09A] mb-3">
@@ -397,7 +397,7 @@
                                     >
                                         <td class="px-3 py-2 align-top">{{ $pump->pump_name }}</td>
                                         <td class="px-3 py-2 align-top">
-                                            <form method="post" action="{{ route('admin.pumps.sale.save', $pump) }}" class="space-y-2">
+                                            <form method="post" action="{{ route($navPrefix.'.pumps.sale.save', $pump) }}" class="space-y-2">
                                                 @csrf
                                                 <select
                                                     name="staff_id"
@@ -440,7 +440,7 @@
                                                     value="{{ now()->toDateString() }}"
                                                     max="{{ now()->toDateString() }}"
                                                     required
-                                                    data-prefill-url="{{ route('admin.pumps.sale.prefill', $pump) }}"
+                                                    data-prefill-url="{{ route($navPrefix.'.pumps.sale.prefill', $pump) }}"
                                                     onclick="this.showPicker && this.showPicker()"
                                                     onfocus="this.showPicker && this.showPicker()"
                                                     class="js-pump-sale-date w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"

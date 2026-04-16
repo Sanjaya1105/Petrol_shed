@@ -449,6 +449,16 @@ class RoleDashboardController extends Controller
 
     public function saveAdminPumpSale(Request $request, Pump $pump): RedirectResponse
     {
+        return $this->saveRolePumpSale($request, $pump, 'admin');
+    }
+
+    public function saveDataEntryPumpSale(Request $request, Pump $pump): RedirectResponse
+    {
+        return $this->saveRolePumpSale($request, $pump, 'data-entry');
+    }
+
+    private function saveRolePumpSale(Request $request, Pump $pump, string $rolePrefix): RedirectResponse
+    {
         $validated = $request->validate([
             'staff_id' => ['required', 'integer', Rule::exists('staff', 'id')->where('is_active', true)],
             'meter_amount' => ['required', 'numeric', 'min:0'],
@@ -494,11 +504,21 @@ class RoleDashboardController extends Controller
         });
 
         return redirect()
-            ->route('admin.show', ['page' => 'pumps'])
+            ->route($rolePrefix.'.show', ['page' => 'pumps'])
             ->with('status', 'Pump sale details saved successfully.');
     }
 
     public function prefillAdminPumpSale(Request $request, Pump $pump): JsonResponse
+    {
+        return $this->prefillRolePumpSale($request, $pump);
+    }
+
+    public function prefillDataEntryPumpSale(Request $request, Pump $pump): JsonResponse
+    {
+        return $this->prefillRolePumpSale($request, $pump);
+    }
+
+    private function prefillRolePumpSale(Request $request, Pump $pump): JsonResponse
     {
         $validated = $request->validate([
             'date' => ['required', 'date', 'before_or_equal:today'],
