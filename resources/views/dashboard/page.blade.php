@@ -2320,13 +2320,13 @@
                                                 placeholder="Gas {{ $gasType }} price"
                                                 readonly
                                                 data-gas-price
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-white dark:text-white px-3 py-2 text-sm outline-none cursor-not-allowed"
                                             >
                                         </td>
                                         <td class="px-3 py-2 align-top">
                                             <select
                                                 name="gas_data[{{ $gasKey }}][staff_id]"
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] text-white dark:text-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                             >
                                                 <option value="">Select staff</option>
                                                 @foreach ($gasStaffMembers as $member)
@@ -2347,7 +2347,7 @@
                                                 value="{{ old('gas_data.'.$gasKey.'.morning_balance', $morningBalance) }}"
                                                 readonly
                                                 data-gas-morning
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-white dark:text-white px-3 py-2 text-sm outline-none cursor-not-allowed"
                                             >
                                         </td>
                                         <td class="px-3 py-2 align-top">
@@ -2358,7 +2358,7 @@
                                                 name="gas_data[{{ $gasKey }}][night_balance]"
                                                 value="{{ old('gas_data.'.$gasKey.'.night_balance', $row?->night_balance) }}"
                                                 data-gas-night
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] text-white dark:text-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                             >
                                         </td>
                                         <td class="px-3 py-2 align-top">
@@ -2370,7 +2370,7 @@
                                                 value="{{ old('gas_data.'.$gasKey.'.today_sale', $row?->today_sale) }}"
                                                 readonly
                                                 data-gas-sale
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-white dark:text-white px-3 py-2 text-sm outline-none cursor-not-allowed"
                                             >
                                         </td>
                                         <td class="px-3 py-2 align-top">
@@ -2382,7 +2382,7 @@
                                                 value="{{ old('gas_data.'.$gasKey.'.amount', $row?->amount) }}"
                                                 readonly
                                                 data-gas-amount
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-white dark:text-white px-3 py-2 text-sm outline-none cursor-not-allowed"
                                             >
                                         </td>
                                         <td class="px-3 py-2 align-top">
