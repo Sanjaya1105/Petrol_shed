@@ -630,7 +630,26 @@ class RoleDashboardController extends Controller
             ($navPrefix === 'dev' && in_array($page, ['pumps', 'sales'], true)) ||
             (in_array($navPrefix, ['admin', 'data-entry'], true) && in_array($page, ['pumps', 'tanks', 'sales'], true))
         ) {
-            $pumps = Pump::query()->orderBy('id')->get();
+            $pumpQuery = Pump::query();
+            if ($page === 'pumps') {
+                $pumpQuery
+                    ->select('pumps.*')
+                    ->join('category', 'pumps.category_id', '=', 'category.id')
+                    ->orderByRaw("
+                        CASE LOWER(REPLACE(REPLACE(category.category, '-', ''), ' ', ''))
+                            WHEN 'diesel' THEN 1
+                            WHEN 'superdiesel' THEN 2
+                            WHEN 'petrol' THEN 3
+                            WHEN 'superpetrol' THEN 4
+                            WHEN 'kerosene' THEN 5
+                            ELSE 99
+                        END
+                    ")
+                    ->orderBy('pumps.pump_name');
+            } else {
+                $pumpQuery->orderBy('id');
+            }
+            $pumps = $pumpQuery->get();
         }
 
         $staffMembers = null;
