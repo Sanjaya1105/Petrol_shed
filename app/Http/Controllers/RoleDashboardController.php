@@ -641,8 +641,8 @@ class RoleDashboardController extends Controller
                             WHEN 'superdiesel' THEN 2
                             WHEN 'petrol' THEN 3
                             WHEN 'superpetrol' THEN 4
-                            WHEN 'kerosene' THEN 5
-                            ELSE 99
+                            WHEN 'kerosene' THEN 999
+                            ELSE 5
                         END
                     ")
                     ->orderBy('pumps.pump_name');
