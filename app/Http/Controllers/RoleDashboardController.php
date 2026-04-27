@@ -83,6 +83,7 @@ class RoleDashboardController extends Controller
             ->select('staff_id', DB::raw('SUM(bill_value) as total_bills'))
             ->groupBy('staff_id')
             ->pluck('total_bills', 'staff_id');
+        $gasAmountByStaffId = $this->gasAmountByStaffForDate($salesData['salesReportDate']);
 
         $staffPdfPayload = $this->buildStaffSalePdfTablePayload(
             $salesData['sales'],
@@ -92,7 +93,8 @@ class RoleDashboardController extends Controller
             $staffMembers,
             $cashByStaffId,
             $cashCategoryTotalsByStaff,
-            $billAmountByStaffId
+            $billAmountByStaffId,
+            $gasAmountByStaffId
         );
 
         $reportCarbon = Carbon::parse($salesData['salesReportDate']);
@@ -757,32 +759,7 @@ class RoleDashboardController extends Controller
                 ->select('staff_id', DB::raw('SUM(bill_value) as total_bills'))
                 ->groupBy('staff_id')
                 ->pluck('total_bills', 'staff_id');
-            $gasPriceLookup = $this->gasPricesLookupForReportDate($salesReportDate);
-            $gasAmountByStaffId = GasDetail::query()
-                ->whereDate('date', $salesReportDate)
-                ->whereNotNull('staff_id')
-                ->get(['staff_id', 'gas_type', 'morning_balance', 'night_balance', 'today_sale', 'amount'])
-                ->groupBy('staff_id')
-                ->map(function (Collection $rows) use ($gasPriceLookup) {
-                    return $rows->sum(function ($row) use ($gasPriceLookup) {
-                        if ($row->amount !== null) {
-                            return (float) $row->amount;
-                        }
-                        $gasType = strtoupper((string) $row->gas_type);
-                        $gasPrice = $gasPriceLookup->get($gasType) ?? $gasPriceLookup->get(strtolower($gasType));
-                        if ($gasPrice === null) {
-                            return 0.0;
-                        }
-                        if ($row->today_sale !== null) {
-                            return (float) $row->today_sale * (float) $gasPrice;
-                        }
-                        if ($row->morning_balance !== null && $row->night_balance !== null) {
-                            return ((float) $row->morning_balance - (float) $row->night_balance) * (float) $gasPrice;
-                        }
-
-                        return 0.0;
-                    });
-                });
+            $gasAmountByStaffId = $this->gasAmountByStaffForDate($salesReportDate);
         }
 
         $cashRecDate = null;
@@ -977,7 +954,7 @@ class RoleDashboardController extends Controller
     /**
      * Staff-sale PDF: one separate table per staff with summary columns.
      *
-     * @return array{groups: list<array{staff: string, lines: list<array<string, string>>, group_total: string, cash_total: string, visa_master_total: string, amex_total: string, bill_amount: string, short_total: string}>, grandTotalFormatted: string|null, showGrandTotal: bool}
+     * @return array{groups: list<array{staff: string, lines: list<array<string, string>>, group_total: string, cash_total: string, visa_master_total: string, amex_total: string, bill_amount: string, gas_amount: string, short_total: string}>, grandTotalFormatted: string|null, showGrandTotal: bool}
      */
     private function buildStaffSalePdfTablePayload(
         Collection $sales,
@@ -988,6 +965,7 @@ class RoleDashboardController extends Controller
         Collection $cashByStaffId,
         Collection $cashCategoryTotalsByStaff,
         Collection $billAmountByStaffId,
+        Collection $gasAmountByStaffId,
     ): array {
         if ($pumps->isEmpty()) {
             return [
@@ -1105,6 +1083,7 @@ class RoleDashboardController extends Controller
             $visaMasterTotal = null;
             $amexTotal = null;
             $billAmountTotal = null;
+            $gasAmountTotal = null;
             $shortTotal = null;
             if ($key !== '') {
                 $cashTotal = $cashByStaffId->get((int) $key);
@@ -1120,11 +1099,16 @@ class RoleDashboardController extends Controller
                 if ($billAmountTotal === null) {
                     $billAmountTotal = $billAmountByStaffId->get((string) $key);
                 }
+                $gasAmountTotal = $gasAmountByStaffId->get((int) $key);
+                if ($gasAmountTotal === null) {
+                    $gasAmountTotal = $gasAmountByStaffId->get((string) $key);
+                }
                 $shortTotal = $groupTotal - (
                     (float) ($cashTotal ?? 0)
                     + (float) ($visaMasterTotal ?? 0)
                     + (float) ($amexTotal ?? 0)
                     + (float) ($billAmountTotal ?? 0)
+                    + (float) ($gasAmountTotal ?? 0)
                 );
             }
             $groups[] = [
@@ -1135,6 +1119,7 @@ class RoleDashboardController extends Controller
                 'visa_master_total' => $visaMasterTotal !== null ? number_format((float) $visaMasterTotal, 2) : '-',
                 'amex_total' => $amexTotal !== null ? number_format((float) $amexTotal, 2) : '-',
                 'bill_amount' => $billAmountTotal !== null ? number_format((float) $billAmountTotal, 2) : '-',
+                'gas_amount' => $gasAmountTotal !== null ? number_format((float) $gasAmountTotal, 2) : '-',
                 'short_total' => $shortTotal !== null ? number_format((float) $shortTotal, 2) : '-',
             ];
         }
@@ -1316,6 +1301,42 @@ class RoleDashboardController extends Controller
             ->pluck('gas_price.price', 'gas_price.gas_type');
 
         return $latestOverall->merge($byReportDate);
+    }
+
+    /**
+     * Gas amount summed by staff for a specific report date.
+     *
+     * @return Collection<int|string, float>
+     */
+    private function gasAmountByStaffForDate(string $reportDate): Collection
+    {
+        $gasPriceLookup = $this->gasPricesLookupForReportDate($reportDate);
+
+        return GasDetail::query()
+            ->whereDate('date', $reportDate)
+            ->whereNotNull('staff_id')
+            ->get(['staff_id', 'gas_type', 'morning_balance', 'night_balance', 'today_sale', 'amount'])
+            ->groupBy('staff_id')
+            ->map(function (Collection $rows) use ($gasPriceLookup) {
+                return (float) $rows->sum(function ($row) use ($gasPriceLookup) {
+                    if ($row->amount !== null) {
+                        return (float) $row->amount;
+                    }
+                    $gasType = strtoupper((string) $row->gas_type);
+                    $gasPrice = $gasPriceLookup->get($gasType) ?? $gasPriceLookup->get(strtolower($gasType));
+                    if ($gasPrice === null) {
+                        return 0.0;
+                    }
+                    if ($row->today_sale !== null) {
+                        return (float) $row->today_sale * (float) $gasPrice;
+                    }
+                    if ($row->morning_balance !== null && $row->night_balance !== null) {
+                        return ((float) $row->morning_balance - (float) $row->night_balance) * (float) $gasPrice;
+                    }
+
+                    return 0.0;
+                });
+            });
     }
 
     /**
