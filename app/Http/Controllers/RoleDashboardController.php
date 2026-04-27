@@ -7,6 +7,8 @@ use App\Models\Bill;
 use App\Models\BillReset;
 use App\Models\CashCollection;
 use App\Models\Company;
+use App\Models\GasPrice;
+use App\Models\GasDetail;
 use App\Models\Price;
 use App\Models\Pump;
 use App\Models\Sale;
@@ -18,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -35,6 +38,7 @@ class RoleDashboardController extends Controller
         'sales' => 'Sales',
         'cash-rec' => 'Cash Rec',
         'bill' => 'Bill',
+        'gas' => 'Gas',
         'theme' => 'Theme',
     ];
 
@@ -45,7 +49,7 @@ class RoleDashboardController extends Controller
 
     public function showAdmin(Request $request, string $page): View
     {
-        abort_unless(in_array($page, ['home', 'categories', 'pumps', 'tanks', 'price', 'staff', 'sales', 'cash-rec', 'bill'], true), 404);
+        abort_unless(in_array($page, ['home', 'categories', 'pumps', 'tanks', 'price', 'staff', 'sales', 'cash-rec', 'bill', 'gas'], true), 404);
 
         return $this->renderPage('admin', 'Admin', $page, $request);
     }
@@ -395,6 +399,11 @@ class RoleDashboardController extends Controller
         return $this->settleRoleCompany($request, $company, 'data-entry');
     }
 
+    public function saveAdminGasDetails(Request $request): RedirectResponse
+    {
+        return $this->saveRoleGasDetails($request, 'admin');
+    }
+
     public function storeAdminStaff(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -544,8 +553,8 @@ class RoleDashboardController extends Controller
 
         return response()->json([
             'staff_id' => $sale?->staff_id,
-            'meter_amount' => $sale ? number_format((float) $sale->meter_amount, 2, '.', '') : '',
-            'starting_meter' => ($startMeter !== null && $startMeter !== '') ? number_format((float) $startMeter, 2, '.', '') : '',
+            'meter_amount' => $sale ? number_format((float) $sale->meter_amount, 5, '.', '') : '',
+            'starting_meter' => ($startMeter !== null && $startMeter !== '') ? number_format((float) $startMeter, 5, '.', '') : '',
             'missing_previous' => $missingPrevious,
         ]);
     }
@@ -593,15 +602,31 @@ class RoleDashboardController extends Controller
         }
 
         $prices = null;
+        $gasPrices = collect();
+        $gasDetails = collect();
+        $gasPreviousDetails = collect();
+        $gasFormDate = null;
         $priceFormDate = null;
         $priceDateMax = null;
         $homePriceDate = null;
         $homeCategoryPriceRows = collect();
         $homeStaffRows = collect();
-        if (in_array($navPrefix, ['dev', 'admin'], true) && $page === 'price') {
+        if (in_array($navPrefix, ['dev', 'admin'], true) && in_array($page, ['price', 'gas'], true)) {
             $priceFormDate = $this->resolvePriceFormDate($request);
             $priceDateMax = now()->toDateString();
-            $prices = $this->pricesForFormDate($priceFormDate);
+            if ($page === 'price') {
+                $prices = $this->pricesForFormDate($priceFormDate);
+                $gasPrices = $this->gasPricesForFormDate($priceFormDate);
+            } else {
+                // On Gas page, use latest available price up to selected date.
+                $gasPrices = $this->gasPricesLookupForReportDate($priceFormDate);
+            }
+            if ($page === 'gas') {
+                $gasFormDate = $this->resolveGasFormDate($request);
+                $gasDetails = $this->gasDetailsForFormDate($gasFormDate);
+                $previousDate = Carbon::parse($gasFormDate)->subDay()->toDateString();
+                $gasPreviousDetails = $this->gasDetailsForFormDate($previousDate);
+            }
         }
         if ($navPrefix === 'admin' && $page === 'home') {
             $homePriceDate = now()->toDateString();
@@ -657,9 +682,14 @@ class RoleDashboardController extends Controller
             $staffMembers = Staff::query()
                 ->where('is_active', true)
                 ->orderBy('id')
-                ->paginate(8, ['*'], 'staff_page')
+                ->paginate(10, ['*'], 'staff_page')
                 ->withQueryString();
         } elseif ($navPrefix === 'admin' && $page === 'pumps') {
+            $staffMembers = Staff::query()
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->get();
+        } elseif ($navPrefix === 'admin' && $page === 'gas') {
             $staffMembers = Staff::query()
                 ->where('is_active', true)
                 ->orderBy('id')
@@ -697,6 +727,7 @@ class RoleDashboardController extends Controller
         $cashByStaffId = collect();
         $cashCategoryTotalsByStaff = collect();
         $billAmountByStaffId = collect();
+        $gasAmountByStaffId = collect();
         if (in_array($navPrefix, ['admin', 'dev', 'data-entry'], true) && $page === 'sales') {
             $yesterday = now()->subDay()->toDateString();
             $salesDatePickerMax = $yesterday;
@@ -726,6 +757,32 @@ class RoleDashboardController extends Controller
                 ->select('staff_id', DB::raw('SUM(bill_value) as total_bills'))
                 ->groupBy('staff_id')
                 ->pluck('total_bills', 'staff_id');
+            $gasPriceLookup = $this->gasPricesLookupForReportDate($salesReportDate);
+            $gasAmountByStaffId = GasDetail::query()
+                ->whereDate('date', $salesReportDate)
+                ->whereNotNull('staff_id')
+                ->get(['staff_id', 'gas_type', 'morning_balance', 'night_balance', 'today_sale', 'amount'])
+                ->groupBy('staff_id')
+                ->map(function (Collection $rows) use ($gasPriceLookup) {
+                    return $rows->sum(function ($row) use ($gasPriceLookup) {
+                        if ($row->amount !== null) {
+                            return (float) $row->amount;
+                        }
+                        $gasType = strtoupper((string) $row->gas_type);
+                        $gasPrice = $gasPriceLookup->get($gasType) ?? $gasPriceLookup->get(strtolower($gasType));
+                        if ($gasPrice === null) {
+                            return 0.0;
+                        }
+                        if ($row->today_sale !== null) {
+                            return (float) $row->today_sale * (float) $gasPrice;
+                        }
+                        if ($row->morning_balance !== null && $row->night_balance !== null) {
+                            return ((float) $row->morning_balance - (float) $row->night_balance) * (float) $gasPrice;
+                        }
+
+                        return 0.0;
+                    });
+                });
         }
 
         $cashRecDate = null;
@@ -841,6 +898,10 @@ class RoleDashboardController extends Controller
             'categories' => $categories,
             'tanks' => $tanks,
             'prices' => $prices,
+            'gasPrices' => $gasPrices,
+            'gasDetails' => $gasDetails,
+            'gasPreviousDetails' => $gasPreviousDetails,
+            'gasFormDate' => $gasFormDate,
             'priceFormDate' => $priceFormDate,
             'priceDateMax' => $priceDateMax,
             'pumps' => $pumps,
@@ -854,6 +915,7 @@ class RoleDashboardController extends Controller
             'cashByStaffId' => $cashByStaffId,
             'cashCategoryTotalsByStaff' => $cashCategoryTotalsByStaff,
             'billAmountByStaffId' => $billAmountByStaffId,
+            'gasAmountByStaffId' => $gasAmountByStaffId,
             'cashRecDate' => $cashRecDate,
             'cashRecDateMax' => $cashRecDateMax,
             'cashRecStaffOptions' => $cashRecStaffOptions,
@@ -1212,6 +1274,91 @@ class RoleDashboardController extends Controller
     }
 
     /**
+     * Gas prices saved for the given calendar date.
+     *
+     * @return Collection<int|string, mixed>
+     */
+    private function gasPricesForFormDate(string $date): Collection
+    {
+        return GasPrice::query()
+            ->whereDate('date', $date)
+            ->pluck('price', 'gas_type');
+    }
+
+    /**
+     * Latest gas price per type in effect on the given date (date <= report date).
+     *
+     * @return Collection<int|string, mixed>
+     */
+    private function gasPricesLookupForReportDate(string $reportDate): Collection
+    {
+        $latestPerType = DB::table('gas_price')
+            ->select('gas_type', DB::raw('MAX(date) as max_date'))
+            ->whereDate('date', '<=', $reportDate)
+            ->groupBy('gas_type');
+
+        $byReportDate = GasPrice::query()
+            ->joinSub($latestPerType, 't', function ($join) {
+                $join->on('gas_price.gas_type', '=', 't.gas_type')
+                    ->on('gas_price.date', '=', 't.max_date');
+            })
+            ->pluck('gas_price.price', 'gas_price.gas_type');
+
+        $latestAnyDate = GasPrice::query()
+            ->select('gas_type', DB::raw('MAX(date) as max_date'))
+            ->groupBy('gas_type');
+
+        $latestOverall = GasPrice::query()
+            ->joinSub($latestAnyDate, 't', function ($join) {
+                $join->on('gas_price.gas_type', '=', 't.gas_type')
+                    ->on('gas_price.date', '=', 't.max_date');
+            })
+            ->pluck('gas_price.price', 'gas_price.gas_type');
+
+        return $latestOverall->merge($byReportDate);
+    }
+
+    /**
+     * Gas details saved for the given calendar date.
+     *
+     * @return Collection<int|string, GasDetail>
+     */
+    private function gasDetailsForFormDate(string $date): Collection
+    {
+        if (! Schema::hasTable('gas_data')) {
+            return collect();
+        }
+
+        return GasDetail::query()
+            ->whereDate('date', $date)
+            ->get()
+            ->keyBy('gas_type');
+    }
+
+    /**
+     * Gas form date from query (?gas_date=) — defaults to today; cannot be in the future.
+     */
+    private function resolveGasFormDate(Request $request): string
+    {
+        $today = now()->startOfDay();
+        $default = $today->toDateString();
+        $raw = $request->query('gas_date');
+        if (! is_string($raw) || $raw === '') {
+            return $default;
+        }
+        try {
+            $picked = Carbon::parse($raw)->startOfDay();
+        } catch (\Throwable) {
+            return $default;
+        }
+        if ($picked->gt($today)) {
+            return $default;
+        }
+
+        return $picked->toDateString();
+    }
+
+    /**
      * Latest price per category in effect on the given report date (most recent row with date &lt;= report date).
      *
      * @return Collection<int|string, mixed>
@@ -1235,8 +1382,12 @@ class RoleDashboardController extends Controller
     {
         $validated = $request->validate([
             'price_date' => ['required', 'date', 'before_or_equal:today'],
-            'prices' => ['required', 'array'],
+            'prices' => ['nullable', 'array'],
             'prices.*' => ['nullable', 'numeric', 'min:0'],
+            'gas_prices' => ['nullable', 'array'],
+            'gas_prices.l' => ['nullable', 'numeric', 'min:0'],
+            'gas_prices.m' => ['nullable', 'numeric', 'min:0'],
+            'gas_prices.s' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $categoryIds = Category::query()->pluck('id')->all();
@@ -1258,6 +1409,33 @@ class RoleDashboardController extends Controller
             Price::query()->updateOrCreate(
                 [
                     'category_id' => $categoryId,
+                    'date' => $date,
+                ],
+                ['price' => $value]
+            );
+        }
+
+        $gasTypeMap = [
+            'l' => 'L',
+            'm' => 'M',
+            's' => 'S',
+        ];
+        $inputGasPrices = $validated['gas_prices'] ?? [];
+        foreach ($gasTypeMap as $inputKey => $gasType) {
+            $value = $inputGasPrices[$inputKey] ?? null;
+
+            if ($value === null || $value === '') {
+                GasPrice::query()
+                    ->where('gas_type', $gasType)
+                    ->whereDate('date', $date)
+                    ->delete();
+
+                continue;
+            }
+
+            GasPrice::query()->updateOrCreate(
+                [
+                    'gas_type' => $gasType,
                     'date' => $date,
                 ],
                 ['price' => $value]
@@ -1531,6 +1709,101 @@ class RoleDashboardController extends Controller
         return redirect()
             ->route($rolePrefix.'.show', ['page' => 'bill'])
             ->with('status', 'Bill settle record saved for '.$company->company_name.'.');
+    }
+
+    private function saveRoleGasDetails(Request $request, string $rolePrefix): RedirectResponse
+    {
+        if (! Schema::hasTable('gas_data')) {
+            return redirect()
+                ->route($rolePrefix.'.show', ['page' => 'gas'])
+                ->with('status', 'Gas details table is missing. Please run migrations first.');
+        }
+
+        $validated = $request->validate([
+            'gas_date' => ['required', 'date', 'before_or_equal:today'],
+            'gas_data' => ['nullable', 'array'],
+            'gas_data.*.staff_id' => ['nullable', 'integer', 'exists:staff,id'],
+            'gas_data.*.night_balance' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $date = Carbon::parse($validated['gas_date'])->toDateString();
+        $previousDate = Carbon::parse($date)->subDay()->toDateString();
+        $previousRows = $this->gasDetailsForFormDate($previousDate);
+        $gasPrices = $this->gasPricesLookupForReportDate($date);
+        $details = $validated['gas_data'] ?? [];
+        if (! is_array($details) || $details === []) {
+            return redirect()
+                ->to(route($rolePrefix.'.show', ['page' => 'gas']).'?'.http_build_query(['gas_date' => $date]))
+                ->with('status', 'No gas row data provided.');
+        }
+        $rowKey = strtolower((string) $request->input('row_key', ''));
+        if ($rowKey !== '' && isset($details[$rowKey])) {
+            $details = [$rowKey => $details[$rowKey]];
+        }
+        $typeMap = ['l' => 'L', 'm' => 'M', 's' => 'S'];
+
+        foreach ($details as $inputKey => $row) {
+            $normalizedKey = strtolower((string) $inputKey);
+            $gasType = $typeMap[$normalizedKey] ?? null;
+            if ($gasType === null) {
+                continue;
+            }
+
+            $staffId = isset($row['staff_id']) && $row['staff_id'] !== '' ? (int) $row['staff_id'] : null;
+            $previousRow = $previousRows->get($gasType);
+            $existingRow = GasDetail::query()
+                ->where('gas_type', $gasType)
+                ->whereDate('date', $date)
+                ->first();
+            $morning = $previousRow?->night_balance ?? $existingRow?->morning_balance;
+            $night = $row['night_balance'] ?? null;
+            $gasPrice = $gasPrices->get($gasType) ?? $gasPrices->get(strtolower($gasType));
+            if ($morning !== null && $night !== null) {
+                $sale = (float) $morning - (float) $night;
+            } else {
+                $sale = null;
+            }
+            if ($sale !== null && $gasPrice !== null) {
+                $amount = $sale * (float) $gasPrice;
+            } else {
+                $amount = null;
+            }
+
+            if ($staffId === null && $morning === null && $night === null && $sale === null && $amount === null) {
+                GasDetail::query()
+                    ->where('gas_type', $gasType)
+                    ->whereDate('date', $date)
+                    ->delete();
+                continue;
+            }
+
+            // Gas values must always be tied to a staff member for sales report mapping.
+            if ($staffId === null && ($night !== null || $sale !== null || $amount !== null)) {
+                throw ValidationException::withMessages([
+                    'gas_data.'.$normalizedKey.'.staff_id' => 'Select staff before updating this gas row.',
+                ]);
+            }
+
+            GasDetail::query()->updateOrCreate(
+                [
+                    'gas_type' => $gasType,
+                    'date' => $date,
+                ],
+                [
+                    'staff_id' => $staffId,
+                    'morning_balance' => $morning,
+                    'night_balance' => $night,
+                    'today_sale' => $sale,
+                    'amount' => $amount,
+                ]
+            );
+        }
+
+        $back = route($rolePrefix.'.show', ['page' => 'gas']).'?'.http_build_query(['gas_date' => $date]);
+
+        return redirect()
+            ->to($back)
+            ->with('status', 'Gas details saved successfully.');
     }
 
     private function salesPdfLogoDataUri(): ?string

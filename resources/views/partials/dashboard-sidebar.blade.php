@@ -15,6 +15,7 @@
         $items[] = ['page' => 'sales', 'label' => 'Sales'];
         $items[] = ['page' => 'cash-rec', 'label' => 'Cash Rec'];
         $items[] = ['page' => 'bill', 'label' => 'Bill'];
+        $items[] = ['page' => 'gas', 'label' => 'Gas'];
     }
     if ($navPrefix === 'data-entry') {
         $items = array_values(array_filter($items, fn ($item) => ($item['page'] ?? null) !== 'price'));

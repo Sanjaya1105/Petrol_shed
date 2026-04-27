@@ -417,7 +417,7 @@
                                         <td class="px-3 py-2 align-top">
                                                 <input
                                                     type="number"
-                                                    value="{{ $startMeter !== null ? number_format((float) $startMeter, 2, '.', '') : '' }}"
+                                                    value="{{ $startMeter !== null ? number_format((float) $startMeter, 5, '.', '') : '' }}"
                                                     readonly
                                                     class="js-pump-row-start-meter w-full rounded-md bg-white dark:bg-white text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed {{ $missingPreviousReading ? 'border-2 border-red-600 ring-1 ring-red-500' : 'border border-gray-300 dark:border-gray-600' }}"
                                                 >
@@ -426,9 +426,9 @@
                                                 <input
                                                     type="number"
                                                     name="meter_amount"
-                                                    value="{{ $selectedDateSale ? number_format((float) $selectedDateSale->meter_amount, 2, '.', '') : '' }}"
+                                                    value="{{ $selectedDateSale ? number_format((float) $selectedDateSale->meter_amount, 5, '.', '') : '' }}"
                                                     min="0"
-                                                    step="0.01"
+                                                    step="0.00001"
                                                     required
                                                     class="js-pump-row-meter w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                                 >
@@ -794,7 +794,8 @@
                                 return strnatcasecmp($nameA, $nameB);
                             })->values();
                             $billAmountByStaffId = $billAmountByStaffId ?? collect();
-                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey, $cashByStaffId, $cashCategoryTotalsByStaff, $billAmountByStaffId) {
+                            $gasAmountByStaffId = $gasAmountByStaffId ?? collect();
+                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey, $cashByStaffId, $cashCategoryTotalsByStaff, $billAmountByStaffId, $gasAmountByStaffId) {
                                 $rows = $byStaffKey->get($key)->sortBy('pump_name', SORT_NATURAL)->values();
                                 $groupTotal = $rows
                                     ->filter(fn ($r) => $r['line_total'] !== null)
@@ -804,6 +805,7 @@
                                 $visaMasterTotal = null;
                                 $amexTotal = null;
                                 $billAmountTotal = null;
+                                $gasAmountTotal = null;
                                 $shortTotal = null;
                                 if ($key !== '') {
                                     $cashTotal = $cashByStaffId->get((int) $key);
@@ -819,24 +821,30 @@
                                     if ($billAmountTotal === null) {
                                         $billAmountTotal = $billAmountByStaffId->get((string) $key);
                                     }
+                                    $gasAmountTotal = $gasAmountByStaffId->get((int) $key);
+                                    if ($gasAmountTotal === null) {
+                                        $gasAmountTotal = $gasAmountByStaffId->get((string) $key);
+                                    }
 
-                                    $shortTotal = (float) $groupTotal - (
+                                    $sumOfCollections =
                                         (float) ($cashTotal ?? 0)
                                         + (float) ($visaMasterTotal ?? 0)
                                         + (float) ($amexTotal ?? 0)
                                         + (float) ($billAmountTotal ?? 0)
-                                    );
+                                        + (float) ($gasAmountTotal ?? 0);
+                                    $shortTotal = (float) $groupTotal - $sumOfCollections;
                                 }
 
                                 return [
                                     'staff_name' => $rows->first()['staff_name'],
                                     'staff_id_for_row' => $key,
                                     'rows' => $rows,
-                                    'cash_total' => $cashTotal !== null ? number_format((float) $cashTotal, 2) : '-',
-                                    'visa_master_total' => $visaMasterTotal !== null ? number_format((float) $visaMasterTotal, 2) : '-',
-                                    'amex_total' => $amexTotal !== null ? number_format((float) $amexTotal, 2) : '-',
-                                    'bill_amount' => $billAmountTotal !== null ? number_format((float) $billAmountTotal, 2) : '-',
-                                    'short_total' => $shortTotal !== null ? number_format((float) $shortTotal, 2) : '-',
+                                    'cash_total' => number_format((float) ($cashTotal ?? 0), 2),
+                                    'visa_master_total' => number_format((float) ($visaMasterTotal ?? 0), 2),
+                                    'amex_total' => number_format((float) ($amexTotal ?? 0), 2),
+                                    'bill_amount' => number_format((float) ($billAmountTotal ?? 0), 2),
+                                    'gas_amount' => number_format((float) ($gasAmountTotal ?? 0), 2),
+                                    'short_total' => $shortTotal !== null ? number_format((float) $shortTotal, 2) : number_format((float) $groupTotal, 2),
                                     'group_total' => $groupHasTotals ? number_format((float) $groupTotal, 2) : '-',
                                 ];
                             });
@@ -894,6 +902,7 @@
                                         <th class="text-left px-3 py-2 font-semibold">Visa/Master</th>
                                         <th class="text-left px-3 py-2 font-semibold">Amex</th>
                                         <th class="text-left px-3 py-2 font-semibold">Bill amount</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Gas Amount</th>
                                         <th class="text-left px-3 py-2 font-semibold">Short</th>
                                     </tr>
                                 </thead>
@@ -929,6 +938,7 @@
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['visa_master_total'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['amex_total'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['bill_amount'] }}</td>
+                                                    <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['gas_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['short_total'] }}</td>
                                                 @endif
                                             </tr>
@@ -940,7 +950,7 @@
                                         <tr>
                                             <td class="px-3 py-2 font-semibold text-right" colspan="7">Grand total</td>
                                             <td class="px-3 py-2 font-semibold">{{ number_format((float) $staffReportGrandTotal, 2) }}</td>
-                                            <td class="px-3 py-2" colspan="5"></td>
+                                            <td class="px-3 py-2" colspan="6"></td>
                                         </tr>
                                     </tfoot>
                                 @endif
@@ -1465,31 +1475,79 @@
                     });
                 })();
             </script>
-            <form method="post" action="{{ route($navPrefix.'.prices.save') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
-                @csrf
-                <input type="hidden" name="price_date" value="{{ old('price_date', $priceFormDate) }}">
-                @if ($categories !== null && $categories->isNotEmpty())
-                    @foreach ($categories as $item)
-                        <div>
-                            <label for="price_{{ $item->id }}" class="block text-sm font-medium mb-1">{{ $item->category }}</label>
-                            <input
-                                type="number"
-                                name="prices[{{ $item->id }}]"
-                                id="price_{{ $item->id }}"
-                                value="{{ old('prices.'.$item->id, $prices[$item->id] ?? '') }}"
-                                min="0"
-                                step="0.01"
-                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                            >
-                        </div>
-                    @endforeach
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <form method="post" action="{{ route($navPrefix.'.prices.save') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                    @csrf
+                    <input type="hidden" name="price_date" value="{{ old('price_date', $priceFormDate) }}">
+                    <h3 class="text-sm font-semibold">Fuel prices</h3>
+                    @if ($categories !== null && $categories->isNotEmpty())
+                        @foreach ($categories as $item)
+                            <div>
+                                <label for="price_{{ $item->id }}" class="block text-sm font-medium mb-1">{{ $item->category }}</label>
+                                <input
+                                    type="number"
+                                    name="prices[{{ $item->id }}]"
+                                    id="price_{{ $item->id }}"
+                                    value="{{ old('prices.'.$item->id, $prices[$item->id] ?? '') }}"
+                                    min="0"
+                                    step="0.01"
+                                    class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                >
+                            </div>
+                        @endforeach
+                        <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                            Save fuel prices
+                        </button>
+                    @else
+                        <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No categories available. Add categories first.</p>
+                    @endif
+                </form>
+
+                <form method="post" action="{{ route($navPrefix.'.prices.save') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                    @csrf
+                    <input type="hidden" name="price_date" value="{{ old('price_date', $priceFormDate) }}">
+                    <h3 class="text-sm font-semibold">Gas prices</h3>
+                    <div>
+                        <label for="gas_price_l" class="block text-sm font-medium mb-1">Gas (L)</label>
+                        <input
+                            type="number"
+                            name="gas_prices[l]"
+                            id="gas_price_l"
+                            value="{{ old('gas_prices.l', $gasPrices['L'] ?? '') }}"
+                            min="0"
+                            step="0.01"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                    </div>
+                    <div>
+                        <label for="gas_price_m" class="block text-sm font-medium mb-1">Gas (M)</label>
+                        <input
+                            type="number"
+                            name="gas_prices[m]"
+                            id="gas_price_m"
+                            value="{{ old('gas_prices.m', $gasPrices['M'] ?? '') }}"
+                            min="0"
+                            step="0.01"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                    </div>
+                    <div>
+                        <label for="gas_price_s" class="block text-sm font-medium mb-1">Gas (S)</label>
+                        <input
+                            type="number"
+                            name="gas_prices[s]"
+                            id="gas_price_s"
+                            value="{{ old('gas_prices.s', $gasPrices['S'] ?? '') }}"
+                            min="0"
+                            step="0.01"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                    </div>
                     <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
-                        Save prices
+                        Save gas prices
                     </button>
-                @else
-                    <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">No categories available. Add categories first.</p>
-                @endif
-            </form>
+                </form>
+            </div>
         @elseif (in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'cash-rec')
             <div class="space-y-3">
                 <h3 class="text-sm font-semibold">Cash</h3>
@@ -1631,7 +1689,7 @@
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
+                <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
                         <thead class="bg-gray-100 dark:bg-gray-800">
                             <tr>
                                 <th class="text-left px-3 py-2 font-semibold">Date</th>
@@ -1701,7 +1759,7 @@
                             @endforelse
                         </tbody>
                     </table>
-                </div>
+            </div>
                 @if ($cashRecRecords instanceof \Illuminate\Pagination\LengthAwarePaginator && $cashRecRecords->hasPages())
                     <div class="mt-3">
                         {{ $cashRecRecords->onEachSide(1)->links() }}
@@ -2202,6 +2260,182 @@
                     }
                 })();
             </script>
+        @elseif ($navPrefix === 'admin' && $page === 'gas')
+            @php
+                $gasRowTypes = ['L', 'M', 'S'];
+                $gasPrices = $gasPrices ?? collect();
+                $gasDetails = $gasDetails ?? collect();
+                $gasPreviousDetails = $gasPreviousDetails ?? collect();
+                $gasDate = $gasFormDate ?? now()->toDateString();
+                $gasDateMax = now()->toDateString();
+                $gasStaffMembers = $staffMembers ?? collect();
+            @endphp
+            <div class="space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                    <h3 class="text-sm font-semibold">Gas details</h3>
+                    <form method="get" action="{{ route($navPrefix.'.show', ['page' => 'gas']) }}" class="flex items-center gap-2">
+                        <label for="gas_date" class="text-xs text-[#706f6c] dark:text-[#A1A09A]">Date</label>
+                        <input
+                            id="gas_date"
+                            name="gas_date"
+                            type="date"
+                            value="{{ $gasDate }}"
+                            max="{{ $gasDateMax }}"
+                            onchange="this.form.submit()"
+                            class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                    </form>
+                </div>
+                <div class="overflow-x-auto">
+                    <form method="post" action="{{ route($navPrefix.'.gas.details.save') }}">
+                        @csrf
+                        <input type="hidden" name="gas_date" value="{{ $gasDate }}">
+                    <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
+                            <thead class="bg-gray-100 dark:bg-gray-800">
+                                <tr>
+                                    <th class="text-left px-3 py-2 font-semibold">Gas type</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Staff</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Morning balance</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Night balance</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Today sale</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Amount</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($gasRowTypes as $gasType)
+                                    @php
+                                        $gasKey = strtolower($gasType);
+                                        $row = $gasDetails->get($gasType);
+                                        $previousRow = $gasPreviousDetails->get($gasType);
+                                        $morningBalance = $row?->morning_balance ?? $previousRow?->night_balance;
+                                    @endphp
+                                    <tr class="border-t border-gray-200 dark:border-gray-700">
+                                        <td class="px-3 py-2 align-top">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value="{{ $gasPrices[$gasType] ?? '' }}"
+                                                placeholder="Gas {{ $gasType }} price"
+                                                readonly
+                                                data-gas-price
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                            >
+                                        </td>
+                                        <td class="px-3 py-2 align-top">
+                                            <select
+                                                name="gas_data[{{ $gasKey }}][staff_id]"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                            >
+                                                <option value="">Select staff</option>
+                                                @foreach ($gasStaffMembers as $member)
+                                                    <option
+                                                        value="{{ $member->id }}"
+                                                        @selected((string) old('gas_data.'.$gasKey.'.staff_id', $row?->staff_id) === (string) $member->id)
+                                                    >
+                                                        {{ $member->name }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td class="px-3 py-2 align-top">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value="{{ old('gas_data.'.$gasKey.'.morning_balance', $morningBalance) }}"
+                                                readonly
+                                                data-gas-morning
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                            >
+                                        </td>
+                                        <td class="px-3 py-2 align-top">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                name="gas_data[{{ $gasKey }}][night_balance]"
+                                                value="{{ old('gas_data.'.$gasKey.'.night_balance', $row?->night_balance) }}"
+                                                data-gas-night
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                            >
+                                        </td>
+                                        <td class="px-3 py-2 align-top">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                name="gas_data[{{ $gasKey }}][today_sale]"
+                                                value="{{ old('gas_data.'.$gasKey.'.today_sale', $row?->today_sale) }}"
+                                                readonly
+                                                data-gas-sale
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                            >
+                                        </td>
+                                        <td class="px-3 py-2 align-top">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                name="gas_data[{{ $gasKey }}][amount]"
+                                                value="{{ old('gas_data.'.$gasKey.'.amount', $row?->amount) }}"
+                                                readonly
+                                                data-gas-amount
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                            >
+                                        </td>
+                                        <td class="px-3 py-2 align-top">
+                                            <button
+                                                type="submit"
+                                                name="row_key"
+                                                value="{{ $gasKey }}"
+                                                class="inline-flex items-center rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2"
+                                            >
+                                                Update
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </form>
+                </div>
+                <script>
+                    (() => {
+                        const rows = Array.from(document.querySelectorAll('table tbody tr'));
+                        rows.forEach((row) => {
+                            const morningInput = row.querySelector('[data-gas-morning]');
+                            const priceInput = row.querySelector('[data-gas-price]');
+                            const nightInput = row.querySelector('[data-gas-night]');
+                            const saleInput = row.querySelector('[data-gas-sale]');
+                            const amountInput = row.querySelector('[data-gas-amount]');
+                            if (!morningInput || !priceInput || !nightInput || !saleInput || !amountInput) return;
+
+                            const recalc = () => {
+                                const morning = Number((morningInput.value || '').trim());
+                                const night = Number((nightInput.value || '').trim());
+                                const price = Number((priceInput.value || '').trim());
+                                if (!Number.isFinite(morning) || !Number.isFinite(night)) {
+                                    saleInput.value = '';
+                                    amountInput.value = '';
+                                    return;
+                                }
+                                const sale = morning - night;
+                                saleInput.value = sale.toFixed(2);
+                                if (Number.isFinite(price)) {
+                                    amountInput.value = (sale * price).toFixed(2);
+                                } else {
+                                    amountInput.value = '';
+                                }
+                            };
+
+                            nightInput.addEventListener('input', recalc);
+                            recalc();
+                        });
+                    })();
+                </script>
+            </div>
         @elseif ($navPrefix === 'admin' && $page === 'home')
             @php
                 $homeRows = $homeCategoryPriceRows ?? collect();
