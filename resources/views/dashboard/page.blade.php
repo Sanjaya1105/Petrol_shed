@@ -1633,10 +1633,8 @@
                                     @endif
                                     <td class="px-3 py-2 align-top">
                                         <input
-                                            type="number"
+                                            type="text"
                                             inputmode="decimal"
-                                            min="0"
-                                            step="0.01"
                                             name="cash_values[]"
                                             class="js-cash-input w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                             placeholder="Enter amount"
@@ -1659,10 +1657,8 @@
                                 <tr class="border-t border-gray-200 dark:border-gray-700" data-cash-line>
                                     <td class="px-3 py-2 align-top">
                                         <input
-                                            type="number"
+                                            type="text"
                                             inputmode="decimal"
-                                            min="0"
-                                            step="0.01"
                                             name="cash_values[]"
                                             class="js-cash-input w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                             placeholder="Enter amount"
@@ -1839,6 +1835,31 @@
 
                     if (!cashTableBody || !totalCell || !dateCell || !staffCell || !categoryCell || !actionCell || !categorySelect) return;
 
+                    const formatMoneyInput = (value) => {
+                        const cleaned = String(value ?? '').replace(/,/g, '').trim();
+                        if (cleaned === '') return '';
+                        const n = Number(cleaned);
+                        if (!Number.isFinite(n)) return '';
+                        return n.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                        });
+                    };
+
+                    const parseMoneyInput = (value) => {
+                        const cleaned = String(value ?? '').replace(/,/g, '').trim();
+                        if (cleaned === '') return null;
+                        const n = Number(cleaned);
+                        return Number.isFinite(n) ? n : null;
+                    };
+
+                    const normalizeCashInputsForSubmit = () => {
+                        cashInputs().forEach((input) => {
+                            const numeric = parseMoneyInput(input.value);
+                            input.value = numeric === null ? '' : numeric.toFixed(2);
+                        });
+                    };
+
                     const cashRows = () => Array.from(cashTableBody.querySelectorAll('tr[data-cash-line]'));
                     const cashInputs = () => Array.from(cashTableBody.querySelectorAll('.js-cash-input'));
 
@@ -1853,12 +1874,13 @@
 
                     const recalcTotal = () => {
                         const total = cashInputs().reduce((sum, input) => {
-                            const raw = (input.value || '').trim();
-                            if (raw === '') return sum;
-                            const n = Number(raw);
-                            return Number.isFinite(n) ? sum + n : sum;
+                            const n = parseMoneyInput(input.value);
+                            return n === null ? sum : sum + n;
                         }, 0);
-                        totalCell.textContent = total.toFixed(2);
+                        totalCell.textContent = total.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                        });
                     };
 
                     const addCashRow = () => {
@@ -1868,10 +1890,8 @@
                         tr.innerHTML = `
                             <td class="px-3 py-2 align-top">
                                 <input
-                                    type="number"
+                                    type="text"
                                     inputmode="decimal"
-                                    min="0"
-                                    step="0.01"
                                     name="cash_values[]"
                                     class="js-cash-input w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                     placeholder="Enter cash amount"
@@ -1911,9 +1931,32 @@
                         }
                     });
 
+                    cashTableBody.addEventListener('blur', (event) => {
+                        const target = event.target;
+                        if (!(target instanceof HTMLInputElement) || !target.classList.contains('js-cash-input')) {
+                            return;
+                        }
+                        const numeric = parseMoneyInput(target.value);
+                        target.value = numeric === null ? '' : formatMoneyInput(numeric);
+                        recalcTotal();
+                    }, true);
+
                     syncRowspan();
+                    cashInputs().forEach((input) => {
+                        const numeric = parseMoneyInput(input.value);
+                        if (numeric !== null) {
+                            input.value = formatMoneyInput(numeric);
+                        }
+                    });
                     recalcTotal();
                     ensureTrailingEmptyRow();
+
+                    const cashForm = cashTableBody.closest('form');
+                    if (cashForm) {
+                        cashForm.addEventListener('submit', () => {
+                            normalizeCashInputsForSubmit();
+                        });
+                    }
                 })();
             </script>
         @elseif (in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'bill')

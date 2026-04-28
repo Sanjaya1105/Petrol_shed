@@ -947,7 +947,7 @@ class RoleDashboardController extends Controller
                         $cashRecExistingValues = [number_format((float) ($existingRow->cash_total ?? 0), 2, '.', '')];
                     }
                     $cashRecExistingTotal = $existingRow->cash_total !== null
-                        ? number_format((float) $existingRow->cash_total, 2, '.', '')
+                        ? number_format((float) $existingRow->cash_total, 2)
                         : null;
                 }
             }
