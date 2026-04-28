@@ -1602,9 +1602,7 @@ class RoleDashboardController extends Controller
             ->filter(fn ($row) => $row !== null)
             ->values();
 
-        if ($selectedCategory === 'cash') {
-            $entries = $entries->take(3);
-        } else {
+        if ($selectedCategory !== 'cash') {
             $first = $entries->first();
             $entries = $first !== null ? collect([$first]) : collect();
         }

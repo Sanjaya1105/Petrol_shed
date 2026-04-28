@@ -1562,7 +1562,6 @@
                     $cashPrefillValues = collect($cashRecExistingValues ?? [])
                         ->map(fn ($value) => is_array($value) ? (string) ($value['amount'] ?? '') : (string) $value)
                         ->filter(fn ($value) => $value !== '')
-                        ->take(3)
                         ->values();
                     $cashRecRecords = $cashRecRecords ?? collect();
                     $cashHistoryDate = $cashRecHistoryDate ?? now()->subDay()->toDateString();
@@ -1573,7 +1572,7 @@
                         $cashPrefillValues = collect([$cashPrefillValues->first() ?? '']);
                     }
                     $initialCashRowCount = $selectedCashCategory === 'cash'
-                        ? min(3, max($cashPrefillValues->count() + 1, 2))
+                        ? max($cashPrefillValues->count() + 1, 2)
                         : 1;
                 @endphp
                 <div class="overflow-x-auto">
@@ -1653,7 +1652,7 @@
                                     @endif
                                 </tr>
                             @endforeach
-                            @if ($selectedCashCategory === 'cash' && $cashPrefillValues->count() < 3)
+                            @if ($selectedCashCategory === 'cash')
                                 <tr class="border-t border-gray-200 dark:border-gray-700" data-cash-line>
                                     <td class="px-3 py-2 align-top">
                                         <input
@@ -1910,7 +1909,7 @@
                         }
                         const inputs = cashInputs();
                         const last = inputs.at(-1);
-                        if (rows.length < 3 && last && (last.value || '').trim() !== '') {
+                        if (last && (last.value || '').trim() !== '') {
                             addCashRow();
                         }
                     };
@@ -1926,7 +1925,7 @@
                         }
                         const inputs = cashInputs();
                         const last = inputs.at(-1);
-                        if (cashRows().length < 3 && last === target && (target.value || '').trim() !== '') {
+                        if (last === target && (target.value || '').trim() !== '') {
                             addCashRow();
                         }
                     });
