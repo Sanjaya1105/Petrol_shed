@@ -368,6 +368,8 @@
                     @php
                         $staffLookup = $staffMembers?->keyBy('id') ?? collect();
                     @endphp
+                    <form method="post" action="{{ route($navPrefix.'.pumps.sales.bulk') }}">
+                        @csrf
                     <div class="overflow-x-auto">
                         <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
                             <thead class="bg-gray-100 dark:bg-gray-800">
@@ -377,7 +379,6 @@
                                     <th class="text-left px-3 py-2 font-semibold">Starting meter reading</th>
                                     <th class="text-left px-3 py-2 font-semibold">Meter reading</th>
                                     <th class="text-left px-3 py-2 font-semibold">Date</th>
-                                    <th class="text-left px-3 py-2 font-semibold">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -397,14 +398,11 @@
                                     >
                                         <td class="px-3 py-2 align-top">{{ $pump->pump_name }}</td>
                                         <td class="px-3 py-2 align-top">
-                                            <form method="post" action="{{ route($navPrefix.'.pumps.sale.save', $pump) }}" class="space-y-2">
-                                                @csrf
                                                 <select
-                                                    name="staff_id"
-                                                    required
+                                                    name="pumps[{{ $pump->id }}][staff_id]"
                                                     class="js-pump-row-staff w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                                 >
-                                                    <option value="" disabled {{ $selectedDateSale ? '' : 'selected' }}>Select staff</option>
+                                                    <option value="" {{ $selectedDateSale ? '' : 'selected' }}>Select staff</option>
                                                     @if ($staffMembers !== null)
                                                         @foreach ($staffMembers as $staffOption)
                                                             <option value="{{ $staffOption->id }}" {{ (string) ($selectedDateSale->staff_id ?? '') === (string) $staffOption->id ? 'selected' : '' }}>
@@ -425,38 +423,38 @@
                                         <td class="px-3 py-2 align-top">
                                                 <input
                                                     type="number"
-                                                    name="meter_amount"
+                                                    name="pumps[{{ $pump->id }}][meter_amount]"
                                                     value="{{ $selectedDateSale ? number_format((float) $selectedDateSale->meter_amount, 5, '.', '') : '' }}"
                                                     min="0"
                                                     step="0.00001"
-                                                    required
                                                     class="js-pump-row-meter w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                                 >
                                         </td>
                                         <td class="px-3 py-2 align-top">
                                                 <input
                                                     type="date"
-                                                    name="date"
+                                                    name="pumps[{{ $pump->id }}][date]"
                                                     value="{{ now()->toDateString() }}"
                                                     max="{{ now()->toDateString() }}"
-                                                    required
                                                     data-prefill-url="{{ route($navPrefix.'.pumps.sale.prefill', $pump) }}"
                                                     onclick="this.showPicker && this.showPicker()"
                                                     onfocus="this.showPicker && this.showPicker()"
                                                     class="js-pump-sale-date w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                                 >
                                         </td>
-                                        <td class="px-3 py-2 align-top">
-                                                <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-3 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
-                                                    Update
-                                                </button>
-                                            </form>
-                                        </td>
                                     </tr>
                                 @endforeach
+                                <tr class="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#1c1c1c]">
+                                    <td colspan="5" class="px-3 py-3 text-right">
+                                        <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                                            Update All Pumps
+                                        </button>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
+                    </form>
                     <script>
                         (function () {
                             document.querySelectorAll('.js-pump-sale-date').forEach(function (input) {
@@ -2320,13 +2318,13 @@
                                                 placeholder="Gas {{ $gasType }} price"
                                                 readonly
                                                 data-gas-price
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-white dark:text-white px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
                                             >
                                         </td>
                                         <td class="px-3 py-2 align-top">
                                             <select
                                                 name="gas_data[{{ $gasKey }}][staff_id]"
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] text-white dark:text-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] text-black dark:text-black px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                             >
                                                 <option value="">Select staff</option>
                                                 @foreach ($gasStaffMembers as $member)
@@ -2347,7 +2345,7 @@
                                                 value="{{ old('gas_data.'.$gasKey.'.morning_balance', $morningBalance) }}"
                                                 readonly
                                                 data-gas-morning
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-white dark:text-white px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
                                             >
                                         </td>
                                         <td class="px-3 py-2 align-top">
@@ -2358,7 +2356,7 @@
                                                 name="gas_data[{{ $gasKey }}][night_balance]"
                                                 value="{{ old('gas_data.'.$gasKey.'.night_balance', $row?->night_balance) }}"
                                                 data-gas-night
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] text-white dark:text-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] text-black dark:text-black px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                                             >
                                         </td>
                                         <td class="px-3 py-2 align-top">
@@ -2370,7 +2368,7 @@
                                                 value="{{ old('gas_data.'.$gasKey.'.today_sale', $row?->today_sale) }}"
                                                 readonly
                                                 data-gas-sale
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-white dark:text-white px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
                                             >
                                         </td>
                                         <td class="px-3 py-2 align-top">
@@ -2382,7 +2380,7 @@
                                                 value="{{ old('gas_data.'.$gasKey.'.amount', $row?->amount) }}"
                                                 readonly
                                                 data-gas-amount
-                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-white dark:text-white px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
                                             >
                                         </td>
                                         <td class="px-3 py-2 align-top">

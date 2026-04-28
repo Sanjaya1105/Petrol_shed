@@ -468,6 +468,16 @@ class RoleDashboardController extends Controller
         return $this->saveRolePumpSale($request, $pump, 'data-entry');
     }
 
+    public function saveAdminPumpSalesBulk(Request $request): RedirectResponse
+    {
+        return $this->saveRolePumpSalesBulk($request, 'admin');
+    }
+
+    public function saveDataEntryPumpSalesBulk(Request $request): RedirectResponse
+    {
+        return $this->saveRolePumpSalesBulk($request, 'data-entry');
+    }
+
     private function saveRolePumpSale(Request $request, Pump $pump, string $rolePrefix): RedirectResponse
     {
         $validated = $request->validate([
@@ -517,6 +527,99 @@ class RoleDashboardController extends Controller
         return redirect()
             ->route($rolePrefix.'.show', ['page' => 'pumps'])
             ->with('status', 'Pump sale details saved successfully.');
+    }
+
+    private function saveRolePumpSalesBulk(Request $request, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'pumps' => ['required', 'array'],
+            'pumps.*.staff_id' => ['nullable', 'integer', Rule::exists('staff', 'id')->where('is_active', true)],
+            'pumps.*.meter_amount' => ['nullable', 'numeric', 'min:0'],
+            'pumps.*.date' => ['nullable', 'date', 'before_or_equal:today'],
+        ]);
+
+        $rows = $validated['pumps'] ?? [];
+        $processed = 0;
+
+        DB::transaction(function () use ($rows, &$processed): void {
+            $pumpIds = collect(array_keys($rows))
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => $id > 0)
+                ->values()
+                ->all();
+
+            if ($pumpIds === []) {
+                return;
+            }
+
+            /** @var Collection<int, Pump> $pumps */
+            $pumps = Pump::query()
+                ->whereIn('id', $pumpIds)
+                ->get()
+                ->keyBy('id');
+
+            foreach ($rows as $pumpIdRaw => $row) {
+                $pumpId = (int) $pumpIdRaw;
+                $pump = $pumps->get($pumpId);
+                if (! $pump instanceof Pump) {
+                    continue;
+                }
+
+                $staffId = isset($row['staff_id']) && $row['staff_id'] !== '' ? (int) $row['staff_id'] : null;
+                $meterAmount = isset($row['meter_amount']) && $row['meter_amount'] !== '' ? (float) $row['meter_amount'] : null;
+                $saleDate = isset($row['date']) && $row['date'] !== ''
+                    ? Carbon::parse((string) $row['date'])->toDateString()
+                    : now()->toDateString();
+
+                // Skip untouched rows; bulk form should not force every row update.
+                if ($staffId === null && $meterAmount === null) {
+                    continue;
+                }
+                if ($staffId === null || $meterAmount === null) {
+                    throw ValidationException::withMessages([
+                        'pumps.'.$pumpId.'.meter_amount' => 'Both staff and meter reading are required for updated rows.',
+                    ]);
+                }
+
+                $tank = Tank::query()->lockForUpdate()->find($pump->tank_id);
+                if ($tank === null) {
+                    throw ValidationException::withMessages([
+                        'pumps.'.$pumpId.'.meter_amount' => 'Selected pump is not linked to a tank.',
+                    ]);
+                }
+
+                $sale = Sale::query()
+                    ->where('pump_id', $pump->id)
+                    ->where('date', $saleDate)
+                    ->first();
+
+                $previousMeterAmount = $sale ? (float) $sale->meter_amount : 0.0;
+                $consumptionDelta = $meterAmount - $previousMeterAmount;
+                $currentAvailable = (float) ($tank->available_amount ?? 0);
+                $updatedAvailable = $currentAvailable - $consumptionDelta;
+
+                $tank->update([
+                    'available_amount' => $updatedAvailable,
+                ]);
+
+                Sale::query()->updateOrCreate(
+                    [
+                        'pump_id' => $pump->id,
+                        'date' => $saleDate,
+                    ],
+                    [
+                        'staff_id' => $staffId,
+                        'meter_amount' => $meterAmount,
+                        'date' => $saleDate,
+                    ]
+                );
+                $processed++;
+            }
+        });
+
+        return redirect()
+            ->route($rolePrefix.'.show', ['page' => 'pumps'])
+            ->with('status', $processed > 0 ? 'Pump sale details saved successfully.' : 'No pump rows were updated.');
     }
 
     public function prefillAdminPumpSale(Request $request, Pump $pump): JsonResponse
