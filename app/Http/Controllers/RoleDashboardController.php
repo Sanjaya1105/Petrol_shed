@@ -1746,10 +1746,24 @@ class RoleDashboardController extends Controller
                 }),
             ],
             'category_id' => ['required', 'integer', 'exists:category,id'],
-            'price' => ['required', 'numeric', 'min:0'],
-            'liters' => ['required', 'numeric', 'gt:0'],
-            'bill_value' => ['required', 'numeric', 'min:0'],
+            'price' => ['required', 'numeric', 'gt:0'],
+            'liters' => ['nullable', 'numeric', 'decimal:0,4', 'gt:0', 'required_without:bill_value'],
+            'bill_value' => ['nullable', 'numeric', 'decimal:0,4', 'gt:0', 'required_without:liters'],
         ]);
+
+        $price = (float) $validated['price'];
+        $liters = isset($validated['liters']) ? (float) $validated['liters'] : null;
+        $billValue = isset($validated['bill_value']) ? (float) $validated['bill_value'] : null;
+        if ($liters === null && $billValue !== null) {
+            $liters = round($billValue / $price, 4);
+        } elseif ($billValue === null && $liters !== null) {
+            $billValue = round($liters * $price, 4);
+        }
+        if ($liters === null || $billValue === null) {
+            throw ValidationException::withMessages([
+                'bill_value' => 'Enter either liter amount or bill value.',
+            ]);
+        }
 
         Bill::query()->create([
             'staff_id' => (int) $validated['staff_id'],
@@ -1757,9 +1771,9 @@ class RoleDashboardController extends Controller
             'company_id' => (int) $validated['company_id'],
             'invoice_number' => trim($validated['invoice_number']),
             'category_id' => (int) $validated['category_id'],
-            'price' => (float) $validated['price'],
-            'liters' => (float) $validated['liters'],
-            'bill_value' => (float) $validated['bill_value'],
+            'price' => $price,
+            'liters' => $liters,
+            'bill_value' => $billValue,
         ]);
 
         return redirect()

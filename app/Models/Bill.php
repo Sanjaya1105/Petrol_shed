@@ -31,8 +31,8 @@ class Bill extends Model
         return [
             'date' => 'date',
             'price' => 'decimal:2',
-            'liters' => 'decimal:2',
-            'bill_value' => 'decimal:2',
+            'liters' => 'decimal:4',
+            'bill_value' => 'decimal:4',
         ];
     }
 }

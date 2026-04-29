@@ -2054,11 +2054,11 @@
                         </div>
                         <div>
                             <label for="bill_liters" class="block text-sm font-medium mb-1">Liter amount</label>
-                            <input type="number" id="bill_liters" name="liters" min="0" step="0.01" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" value="{{ old('liters') }}" required>
+                            <input type="number" id="bill_liters" name="liters" min="0" step="0.0001" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" value="{{ old('liters') }}">
                         </div>
                         <div class="md:col-span-2">
                             <label for="bill_value" class="block text-sm font-medium mb-1">Bill value</label>
-                            <input type="text" id="bill_value" name="bill_value" readonly class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-[#121212] px-3 py-2 text-sm outline-none" placeholder="Auto calculated" value="{{ old('bill_value') }}" required>
+                            <input type="number" id="bill_value" name="bill_value" min="0" step="0.0001" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Enter bill value or liters" value="{{ old('bill_value') }}">
                         </div>
                     </div>
                     <div>
@@ -2242,7 +2242,7 @@
                     const billValueInput = document.getElementById('bill_value');
                     const billPriceUrl = @json(route($navPrefix.'.bill.category-price'));
 
-                    const updateBillValue = () => {
+                    const updateBillValueFromLiters = () => {
                         if (!billPriceInput || !billLitersInput || !billValueInput) return;
                         const p = Number((billPriceInput.value || '').trim());
                         const l = Number((billLitersInput.value || '').trim());
@@ -2250,7 +2250,18 @@
                             billValueInput.value = '';
                             return;
                         }
-                        billValueInput.value = (p * l).toFixed(2);
+                        billValueInput.value = (p * l).toFixed(4);
+                    };
+
+                    const updateBillLitersFromValue = () => {
+                        if (!billPriceInput || !billLitersInput || !billValueInput) return;
+                        const p = Number((billPriceInput.value || '').trim());
+                        const v = Number((billValueInput.value || '').trim());
+                        if (!Number.isFinite(p) || p <= 0 || !Number.isFinite(v)) {
+                            billLitersInput.value = '';
+                            return;
+                        }
+                        billLitersInput.value = (v / p).toFixed(4);
                     };
 
                     const fetchBillPrice = async () => {
@@ -2259,7 +2270,11 @@
                         const categoryId = billCategorySelect.value;
                         if (!date || !categoryId) {
                             billPriceInput.value = '';
-                            updateBillValue();
+                            if ((billLitersInput?.value || '').trim() !== '') {
+                                updateBillValueFromLiters();
+                            } else if ((billValueInput?.value || '').trim() !== '') {
+                                updateBillLitersFromValue();
+                            }
                             return;
                         }
                         const url = new URL(billPriceUrl, window.location.origin);
@@ -2273,7 +2288,11 @@
                         } catch (e) {
                             billPriceInput.value = '';
                         }
-                        updateBillValue();
+                        if ((billLitersInput?.value || '').trim() !== '') {
+                            updateBillValueFromLiters();
+                        } else if ((billValueInput?.value || '').trim() !== '') {
+                            updateBillLitersFromValue();
+                        }
                     };
 
                     if (billDateField && billDateInput) {
@@ -2296,7 +2315,10 @@
                         billCategorySelect.addEventListener('change', fetchBillPrice);
                     }
                     if (billLitersInput) {
-                        billLitersInput.addEventListener('input', updateBillValue);
+                        billLitersInput.addEventListener('input', updateBillValueFromLiters);
+                    }
+                    if (billValueInput) {
+                        billValueInput.addEventListener('input', updateBillLitersFromValue);
                     }
                 })();
             </script>
