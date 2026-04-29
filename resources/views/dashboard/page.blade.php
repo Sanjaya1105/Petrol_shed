@@ -838,7 +838,7 @@
                                         + (float) ($billAmountTotal ?? 0)
                                         - (float) ($gasAmountTotal ?? 0)
                                         - (float) ($oilAmountTotal ?? 0)
-                                        - (float) ($salaryAmountForSalesDate ?? 0);
+                                        + (float) ($salaryAmountForSalesDate ?? 0);
                                     $shortTotal = (float) $groupTotal - $sumOfCollections;
                                 }
 
