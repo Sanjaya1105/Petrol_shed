@@ -778,7 +778,16 @@ class RoleDashboardController extends Controller
                     ->orderByRaw("
                         CASE
                             WHEN LOWER(REPLACE(REPLACE(category.category, '-', ''), ' ', '')) = 'petrol'
-                            THEN CAST(TRIM(SUBSTRING_INDEX(pumps.pump_name, '-', -1)) AS UNSIGNED)
+                            THEN CAST(
+                                REPLACE(
+                                    REPLACE(
+                                        REPLACE(LOWER(pumps.pump_name), 'petrol', ''),
+                                        '-', ''
+                                    ),
+                                    ' ',
+                                    ''
+                                ) AS UNSIGNED
+                            )
                             ELSE 0
                         END
                     ")
