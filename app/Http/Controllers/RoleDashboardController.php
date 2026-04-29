@@ -1243,7 +1243,7 @@ class RoleDashboardController extends Controller
                     + (float) ($visaMasterTotal ?? 0)
                     + (float) ($amexTotal ?? 0)
                     + (float) ($billAmountTotal ?? 0)
-                    + (float) ($gasAmountTotal ?? 0)
+                    - (float) ($gasAmountTotal ?? 0)
                 );
             }
             $groups[] = [
