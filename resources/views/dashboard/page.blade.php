@@ -794,8 +794,9 @@
                             $billAmountByStaffId = $billAmountByStaffId ?? collect();
                             $gasAmountByStaffId = $gasAmountByStaffId ?? collect();
                             $oilAmountByStaffId = $oilAmountByStaffId ?? collect();
+                            $expenseAmountByStaffId = $expenseAmountByStaffId ?? collect();
                             $salaryAmountForSalesDate = $salaryAmountForSalesDate ?? null;
-                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey, $cashByStaffId, $cashCategoryTotalsByStaff, $billAmountByStaffId, $gasAmountByStaffId, $oilAmountByStaffId, $salaryAmountForSalesDate) {
+                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey, $cashByStaffId, $cashCategoryTotalsByStaff, $billAmountByStaffId, $gasAmountByStaffId, $oilAmountByStaffId, $expenseAmountByStaffId, $salaryAmountForSalesDate) {
                                 $rows = $byStaffKey->get($key)->sortBy('pump_name', SORT_NATURAL)->values();
                                 $groupTotal = $rows
                                     ->filter(fn ($r) => $r['line_total'] !== null)
@@ -807,6 +808,7 @@
                                 $billAmountTotal = null;
                                 $gasAmountTotal = null;
                                 $oilAmountTotal = null;
+                                $expenseAmountTotal = null;
                                 $shortTotal = null;
                                 if ($key !== '') {
                                     $cashTotal = $cashByStaffId->get((int) $key);
@@ -830,6 +832,10 @@
                                     if ($oilAmountTotal === null) {
                                         $oilAmountTotal = $oilAmountByStaffId->get((string) $key);
                                     }
+                                    $expenseAmountTotal = $expenseAmountByStaffId->get((int) $key);
+                                    if ($expenseAmountTotal === null) {
+                                        $expenseAmountTotal = $expenseAmountByStaffId->get((string) $key);
+                                    }
 
                                     $sumOfCollections =
                                         (float) ($cashTotal ?? 0)
@@ -838,7 +844,8 @@
                                         + (float) ($billAmountTotal ?? 0)
                                         - (float) ($gasAmountTotal ?? 0)
                                         - (float) ($oilAmountTotal ?? 0)
-                                        + (float) ($salaryAmountForSalesDate ?? 0);
+                                        + (float) ($salaryAmountForSalesDate ?? 0)
+                                        + (float) ($expenseAmountTotal ?? 0);
                                     $shortTotal = (float) $groupTotal - $sumOfCollections;
                                 }
 
@@ -852,6 +859,7 @@
                                     'bill_amount' => number_format((float) ($billAmountTotal ?? 0), 2),
                                     'gas_amount' => number_format((float) ($gasAmountTotal ?? 0), 2),
                                     'oil_amount' => number_format((float) ($oilAmountTotal ?? 0), 2),
+                                    'expense_amount' => number_format((float) ($expenseAmountTotal ?? 0), 2),
                                     'salary_amount' => $salaryAmountForSalesDate !== null ? number_format((float) $salaryAmountForSalesDate, 2) : '0.00',
                                     'short_total' => $shortTotal !== null ? number_format((float) $shortTotal, 2) : number_format((float) $groupTotal, 2),
                                     'group_total' => $groupHasTotals ? number_format((float) $groupTotal, 2) : '-',
@@ -913,6 +921,7 @@
                                         <th class="text-left px-3 py-2 font-semibold">Bill amount</th>
                                         <th class="text-left px-3 py-2 font-semibold">Gas Amount</th>
                                         <th class="text-left px-3 py-2 font-semibold">Oil Amount</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Expense</th>
                                         <th class="text-left px-3 py-2 font-semibold">Salary</th>
                                         <th class="text-left px-3 py-2 font-semibold">Short</th>
                                     </tr>
@@ -951,6 +960,7 @@
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['bill_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['gas_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['oil_amount'] }}</td>
+                                                    <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['expense_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['salary_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['short_total'] }}</td>
                                                 @endif
@@ -963,7 +973,7 @@
                                         <tr>
                                             <td class="px-3 py-2 font-semibold text-right" colspan="7">Grand total</td>
                                             <td class="px-3 py-2 font-semibold">{{ number_format((float) $staffReportGrandTotal, 2) }}</td>
-                                            <td class="px-3 py-2" colspan="8"></td>
+                                            <td class="px-3 py-2" colspan="9"></td>
                                         </tr>
                                     </tfoot>
                                 @endif
@@ -2839,6 +2849,155 @@
                     });
                     salaryDateInput.addEventListener('change', () => {
                         salaryDateInput.form?.submit();
+                    });
+                })();
+            </script>
+        @elseif ($navPrefix === 'admin' && $page === 'expense')
+            @php
+                $expenseDate = $expenseFormDate ?? now()->toDateString();
+                $expenseDateMax = $expenseDateMax ?? now()->toDateString();
+                $expenseStaffOptions = $expenseStaffOptions ?? collect();
+                $expenseRecords = $expenseRecords ?? collect();
+            @endphp
+            <div class="max-w-3xl space-y-3">
+                <h3 class="text-sm font-semibold">Expense</h3>
+                <form method="get" action="{{ route($navPrefix.'.show', ['page' => 'expense']) }}" class="max-w-xs">
+                    <label for="expense_date" class="block text-sm font-medium mb-1">Date</label>
+                    <div id="expense_date_field" class="w-full cursor-pointer rounded-md">
+                        <input
+                            type="date"
+                            id="expense_date"
+                            name="expense_date"
+                            value="{{ $expenseDate }}"
+                            max="{{ $expenseDateMax }}"
+                            onchange="this.form.submit()"
+                            class="w-full cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                    </div>
+                </form>
+
+                <form method="post" action="{{ route($navPrefix.'.expense.save') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                    @csrf
+                    <input type="hidden" name="expense_date" value="{{ $expenseDate }}">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label for="expense_staff_id" class="block text-sm font-medium mb-1">Staff</label>
+                            <select
+                                id="expense_staff_id"
+                                name="staff_id"
+                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                required
+                            >
+                                <option value="">Select staff</option>
+                                @foreach ($expenseStaffOptions as $staffOption)
+                                    <option value="{{ $staffOption->id }}" @selected((string) old('staff_id') === (string) $staffOption->id)>{{ $staffOption->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="expense_amount" class="block text-sm font-medium mb-1">Amount</label>
+                            <input
+                                type="number"
+                                id="expense_amount"
+                                name="expense_amount"
+                                value="{{ old('expense_amount') }}"
+                                min="0"
+                                step="0.01"
+                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                required
+                            >
+                        </div>
+                    </div>
+                    <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                        Save
+                    </button>
+                </form>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
+                        <thead class="bg-gray-100 dark:bg-gray-800">
+                            <tr>
+                                <th class="text-left px-3 py-2 font-semibold">Date</th>
+                                <th class="text-left px-3 py-2 font-semibold">Staff</th>
+                                <th class="text-left px-3 py-2 font-semibold">Amount</th>
+                                <th class="text-left px-3 py-2 font-semibold">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($expenseRecords as $record)
+                                @php $expenseUpdateFormId = 'expense_update_'.$record->id; @endphp
+                                <tr class="border-t border-gray-200 dark:border-gray-700">
+                                    <td class="px-3 py-2 align-top">{{ \Illuminate\Support\Carbon::parse($record->date)->toDateString() }}</td>
+                                    <td class="px-3 py-2 align-top">
+                                        <select
+                                            name="staff_id"
+                                            form="{{ $expenseUpdateFormId }}"
+                                            class="w-full sm:w-44 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-2 py-1.5 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                            required
+                                        >
+                                            @foreach ($expenseStaffOptions as $staffOption)
+                                                <option value="{{ $staffOption->id }}" @selected((int) $record->staff_id === (int) $staffOption->id)>{{ $staffOption->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        <input
+                                            type="number"
+                                            name="expense_amount"
+                                            form="{{ $expenseUpdateFormId }}"
+                                            min="0"
+                                            step="0.01"
+                                            value="{{ number_format((float) $record->expense_amount, 2, '.', '') }}"
+                                            class="w-full sm:w-32 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-2 py-1.5 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                            required
+                                        >
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        <div class="flex items-center gap-2">
+                                            <form id="{{ $expenseUpdateFormId }}" method="post" action="{{ route($navPrefix.'.expense.update', $record) }}">
+                                                @csrf
+                                                @method('PUT')
+                                                <input type="hidden" name="expense_date" value="{{ $expenseDate }}">
+                                            </form>
+                                            <button type="submit" form="{{ $expenseUpdateFormId }}" class="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                Update
+                                            </button>
+                                            <form method="post" action="{{ route($navPrefix.'.expense.delete', $record) }}" onsubmit="return confirm('Delete this expense record?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <input type="hidden" name="expense_date" value="{{ $expenseDate }}">
+                                                <button type="submit" class="rounded-md border border-red-300 text-red-700 dark:border-red-700 dark:text-red-400 px-2 py-1.5 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/30">
+                                                    Delete
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr class="border-t border-gray-200 dark:border-gray-700">
+                                    <td colspan="4" class="px-3 py-3 text-sm text-[#706f6c] dark:text-[#A1A09A]">No expense records for selected date.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <script>
+                (() => {
+                    const expenseDateInput = document.getElementById('expense_date');
+                    const expenseDateField = document.getElementById('expense_date_field');
+                    if (!expenseDateInput || !expenseDateField) return;
+
+                    expenseDateField.addEventListener('click', () => {
+                        if (typeof expenseDateInput.showPicker === 'function') {
+                            try {
+                                expenseDateInput.showPicker();
+                            } catch (_) {
+                                expenseDateInput.focus();
+                            }
+                        } else {
+                            expenseDateInput.focus();
+                        }
                     });
                 })();
             </script>

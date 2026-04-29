@@ -7,6 +7,7 @@ use App\Models\Bill;
 use App\Models\BillReset;
 use App\Models\CashCollection;
 use App\Models\Company;
+use App\Models\Expense;
 use App\Models\GasPrice;
 use App\Models\GasDetail;
 use App\Models\OilPrice;
@@ -44,6 +45,7 @@ class RoleDashboardController extends Controller
         'gas' => 'Gas',
         'oil' => 'Oil',
         'slary' => 'Salary',
+        'expense' => 'Expense',
         'theme' => 'Theme',
     ];
 
@@ -54,7 +56,7 @@ class RoleDashboardController extends Controller
 
     public function showAdmin(Request $request, string $page): View
     {
-        abort_unless(in_array($page, ['home', 'categories', 'pumps', 'tanks', 'price', 'staff', 'sales', 'cash-rec', 'bill', 'gas', 'oil', 'slary'], true), 404);
+        abort_unless(in_array($page, ['home', 'categories', 'pumps', 'tanks', 'price', 'staff', 'sales', 'cash-rec', 'bill', 'gas', 'oil', 'slary', 'expense'], true), 404);
 
         return $this->renderPage('admin', 'Admin', $page, $request);
     }
@@ -421,6 +423,21 @@ class RoleDashboardController extends Controller
         return $this->saveRoleSalaryAmount($request, 'admin');
     }
 
+    public function saveAdminExpenseRecord(Request $request): RedirectResponse
+    {
+        return $this->saveRoleExpenseRecord($request, 'admin');
+    }
+
+    public function updateAdminExpenseRecord(Request $request, Expense $expense): RedirectResponse
+    {
+        return $this->updateRoleExpenseRecord($request, $expense, 'admin');
+    }
+
+    public function deleteAdminExpenseRecord(Request $request, Expense $expense): RedirectResponse
+    {
+        return $this->deleteRoleExpenseRecord($request, $expense, 'admin');
+    }
+
     public function updateAdminOilRecord(Request $request, OilRecord $oilRecord): RedirectResponse
     {
         return $this->updateRoleOilRecord($request, $oilRecord, 'admin');
@@ -750,6 +767,10 @@ class RoleDashboardController extends Controller
         $salaryFormDate = null;
         $salaryDateMax = null;
         $salaryAmount = null;
+        $expenseFormDate = null;
+        $expenseDateMax = null;
+        $expenseStaffOptions = collect();
+        $expenseRecords = collect();
         if (in_array($navPrefix, ['dev', 'admin'], true) && in_array($page, ['price', 'gas'], true)) {
             $priceFormDate = $this->resolvePriceFormDate($request);
             $priceDateMax = now()->toDateString();
@@ -810,6 +831,19 @@ class RoleDashboardController extends Controller
                 ->whereDate('date', $salaryFormDate)
                 ->value('amount');
             $salaryAmount = $salaryAmount !== null ? (float) $salaryAmount : null;
+        }
+        if ($navPrefix === 'admin' && $page === 'expense') {
+            $expenseFormDate = $this->resolveExpenseFormDate($request);
+            $expenseDateMax = now()->toDateString();
+            $expenseStaffOptions = Staff::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+            $expenseRecords = Expense::query()
+                ->with('staff')
+                ->whereDate('date', $expenseFormDate)
+                ->orderBy('id')
+                ->get();
         }
 
         $pumps = null;
@@ -923,6 +957,7 @@ class RoleDashboardController extends Controller
         $billAmountByStaffId = collect();
         $gasAmountByStaffId = collect();
         $oilAmountByStaffId = collect();
+        $expenseAmountByStaffId = collect();
         $salaryAmountForSalesDate = null;
         if (in_array($navPrefix, ['admin', 'dev', 'data-entry'], true) && $page === 'sales') {
             $yesterday = now()->subDay()->toDateString();
@@ -959,6 +994,11 @@ class RoleDashboardController extends Controller
                 ->select('staff_id', DB::raw('SUM(total) as total_oil'))
                 ->groupBy('staff_id')
                 ->pluck('total_oil', 'staff_id');
+            $expenseAmountByStaffId = Expense::query()
+                ->whereDate('date', $salesReportDate)
+                ->select('staff_id', DB::raw('SUM(expense_amount) as total_expense'))
+                ->groupBy('staff_id')
+                ->pluck('total_expense', 'staff_id');
             $salaryAmountForSalesDate = $this->salaryAmountLookupForReportDate($salesReportDate);
         }
 
@@ -1095,6 +1135,7 @@ class RoleDashboardController extends Controller
             'billAmountByStaffId' => $billAmountByStaffId,
             'gasAmountByStaffId' => $gasAmountByStaffId,
             'oilAmountByStaffId' => $oilAmountByStaffId,
+            'expenseAmountByStaffId' => $expenseAmountByStaffId,
             'salaryAmountForSalesDate' => $salaryAmountForSalesDate,
             'cashRecDate' => $cashRecDate,
             'cashRecDateMax' => $cashRecDateMax,
@@ -1120,6 +1161,10 @@ class RoleDashboardController extends Controller
             'salaryFormDate' => $salaryFormDate,
             'salaryDateMax' => $salaryDateMax,
             'salaryAmount' => $salaryAmount,
+            'expenseFormDate' => $expenseFormDate,
+            'expenseDateMax' => $expenseDateMax,
+            'expenseStaffOptions' => $expenseStaffOptions,
+            'expenseRecords' => $expenseRecords,
         ]);
     }
 
@@ -1897,6 +1942,106 @@ class RoleDashboardController extends Controller
         return redirect()
             ->to($back)
             ->with('status', 'Salary amount saved successfully.');
+    }
+
+    private function resolveExpenseFormDate(Request $request): string
+    {
+        $today = now()->startOfDay();
+        $default = $today->toDateString();
+        $raw = $request->query('expense_date');
+        if (! is_string($raw) || $raw === '') {
+            return $default;
+        }
+        try {
+            $picked = Carbon::parse($raw)->startOfDay();
+        } catch (\Throwable) {
+            return $default;
+        }
+        if ($picked->gt($today)) {
+            return $default;
+        }
+
+        return $picked->toDateString();
+    }
+
+    private function saveRoleExpenseRecord(Request $request, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'expense_date' => ['required', 'date', 'before_or_equal:today'],
+            'staff_id' => ['required', 'integer', Rule::exists('staff', 'id')->where('is_active', true)],
+            'expense_amount' => ['required', 'numeric', 'gt:0'],
+        ]);
+
+        $date = Carbon::parse($validated['expense_date'])->toDateString();
+        $staff = Staff::query()->find((int) $validated['staff_id']);
+        if ($staff === null) {
+            throw ValidationException::withMessages([
+                'staff_id' => 'Selected staff member is invalid.',
+            ]);
+        }
+
+        Expense::query()->updateOrCreate(
+            [
+                'staff_id' => $staff->id,
+                'date' => $date,
+            ],
+            [
+                'staff_name' => $staff->name,
+                'expense_amount' => (float) $validated['expense_amount'],
+            ]
+        );
+
+        $back = route($rolePrefix.'.show', ['page' => 'expense']).'?'.http_build_query([
+            'expense_date' => $date,
+        ]);
+
+        return redirect()
+            ->to($back)
+            ->with('status', 'Expense record saved successfully.');
+    }
+
+    private function updateRoleExpenseRecord(Request $request, Expense $expense, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'staff_id' => ['required', 'integer', Rule::exists('staff', 'id')->where('is_active', true)],
+            'expense_amount' => ['required', 'numeric', 'gt:0'],
+            'expense_date' => ['nullable', 'date', 'before_or_equal:today'],
+        ]);
+
+        $staff = Staff::query()->find((int) $validated['staff_id']);
+        if ($staff === null) {
+            throw ValidationException::withMessages([
+                'staff_id' => 'Selected staff member is invalid.',
+            ]);
+        }
+
+        $expense->update([
+            'staff_id' => $staff->id,
+            'staff_name' => $staff->name,
+            'expense_amount' => (float) $validated['expense_amount'],
+        ]);
+
+        $rawDate = $validated['expense_date'] ?? null;
+        $backDate = is_string($rawDate) && $rawDate !== ''
+            ? Carbon::parse($rawDate)->toDateString()
+            : Carbon::parse($expense->date)->toDateString();
+
+        return redirect()
+            ->to(route($rolePrefix.'.show', ['page' => 'expense']).'?'.http_build_query(['expense_date' => $backDate]))
+            ->with('status', 'Expense record updated successfully.');
+    }
+
+    private function deleteRoleExpenseRecord(Request $request, Expense $expense, string $rolePrefix): RedirectResponse
+    {
+        $expense->delete();
+        $rawDate = $request->input('expense_date');
+        $backDate = is_string($rawDate) && $rawDate !== ''
+            ? Carbon::parse($rawDate)->toDateString()
+            : now()->toDateString();
+
+        return redirect()
+            ->to(route($rolePrefix.'.show', ['page' => 'expense']).'?'.http_build_query(['expense_date' => $backDate]))
+            ->with('status', 'Expense record deleted successfully.');
     }
 
     private function salaryAmountLookupForReportDate(string $reportDate): ?float
