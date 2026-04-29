@@ -103,12 +103,16 @@
                         <td colspan="6" style="padding: 0;">
                             <table style="width: 100%; border-collapse: collapse;">
                                 <tr>
-                                    <td style="width: 16.66%; border: 0; border-top: 1px solid #333;"><strong>Cash amount</strong><br>{{ $group['cash_total'] }}</td>
-                                    <td style="width: 16.66%; border: 0; border-top: 1px solid #333;"><strong>Visa/Master</strong><br>{{ $group['visa_master_total'] }}</td>
-                                    <td style="width: 16.66%; border: 0; border-top: 1px solid #333;"><strong>Amex</strong><br>{{ $group['amex_total'] }}</td>
-                                    <td style="width: 16.66%; border: 0; border-top: 1px solid #333;"><strong>Bill amount</strong><br>{{ $group['bill_amount'] }}</td>
-                                    <td style="width: 16.66%; border: 0; border-top: 1px solid #333;"><strong>Gas amount</strong><br>{{ $group['gas_amount'] }}</td>
-                                    <td style="width: 16.66%; border: 0; border-top: 1px solid #333;"><strong>Short</strong><br>{{ $group['short_total'] }}</td>
+                                    <td style="width: 10%; border: 0; border-top: 1px solid #333;"><strong>Total</strong><br>{{ $group['group_total'] }}</td>
+                                    <td style="width: 10%; border: 0; border-top: 1px solid #333;"><strong>Cash amount</strong><br>{{ $group['cash_total'] }}</td>
+                                    <td style="width: 10%; border: 0; border-top: 1px solid #333;"><strong>Visa/Master</strong><br>{{ $group['visa_master_total'] }}</td>
+                                    <td style="width: 10%; border: 0; border-top: 1px solid #333;"><strong>Amex</strong><br>{{ $group['amex_total'] }}</td>
+                                    <td style="width: 10%; border: 0; border-top: 1px solid #333;"><strong>Bill amount</strong><br>{{ $group['bill_amount'] }}</td>
+                                    <td style="width: 10%; border: 0; border-top: 1px solid #333;"><strong>Gas amount</strong><br>{{ $group['gas_amount'] }}</td>
+                                    <td style="width: 10%; border: 0; border-top: 1px solid #333;"><strong>Oil amount</strong><br>{{ $group['oil_amount'] }}</td>
+                                    <td style="width: 10%; border: 0; border-top: 1px solid #333;"><strong>Expense</strong><br>{{ $group['expense_amount'] }}</td>
+                                    <td style="width: 10%; border: 0; border-top: 1px solid #333;"><strong>Salary</strong><br>{{ $group['salary_amount'] }}</td>
+                                    <td style="width: 10%; border: 0; border-top: 1px solid #333;"><strong>Short</strong><br>{{ $group['short_total'] }}</td>
                                 </tr>
                             </table>
                         </td>

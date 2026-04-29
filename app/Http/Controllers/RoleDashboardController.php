@@ -91,6 +91,17 @@ class RoleDashboardController extends Controller
             ->groupBy('staff_id')
             ->pluck('total_bills', 'staff_id');
         $gasAmountByStaffId = $this->gasAmountByStaffForDate($salesData['salesReportDate']);
+        $oilAmountByStaffId = OilRecord::query()
+            ->whereDate('date', $salesData['salesReportDate'])
+            ->select('staff_id', DB::raw('SUM(total) as total_oil'))
+            ->groupBy('staff_id')
+            ->pluck('total_oil', 'staff_id');
+        $expenseAmountByStaffId = Expense::query()
+            ->whereDate('date', $salesData['salesReportDate'])
+            ->select('staff_id', DB::raw('SUM(expense_amount) as total_expense'))
+            ->groupBy('staff_id')
+            ->pluck('total_expense', 'staff_id');
+        $salaryAmountForSalesDate = $this->salaryAmountLookupForReportDate($salesData['salesReportDate']);
 
         $staffPdfPayload = $this->buildStaffSalePdfTablePayload(
             $salesData['sales'],
@@ -101,7 +112,10 @@ class RoleDashboardController extends Controller
             $cashByStaffId,
             $cashCategoryTotalsByStaff,
             $billAmountByStaffId,
-            $gasAmountByStaffId
+            $gasAmountByStaffId,
+            $oilAmountByStaffId,
+            $expenseAmountByStaffId,
+            $salaryAmountForSalesDate
         );
 
         $reportCarbon = Carbon::parse($salesData['salesReportDate']);
@@ -1210,7 +1224,7 @@ class RoleDashboardController extends Controller
     /**
      * Staff-sale PDF: one separate table per staff with summary columns.
      *
-     * @return array{groups: list<array{staff: string, lines: list<array<string, string>>, group_total: string, cash_total: string, visa_master_total: string, amex_total: string, bill_amount: string, gas_amount: string, short_total: string}>, grandTotalFormatted: string|null, showGrandTotal: bool}
+     * @return array{groups: list<array{staff: string, lines: list<array<string, string>>, group_total: string, cash_total: string, visa_master_total: string, amex_total: string, bill_amount: string, gas_amount: string, oil_amount: string, expense_amount: string, salary_amount: string, short_total: string}>, grandTotalFormatted: string|null, showGrandTotal: bool}
      */
     private function buildStaffSalePdfTablePayload(
         Collection $sales,
@@ -1222,6 +1236,9 @@ class RoleDashboardController extends Controller
         Collection $cashCategoryTotalsByStaff,
         Collection $billAmountByStaffId,
         Collection $gasAmountByStaffId,
+        Collection $oilAmountByStaffId,
+        Collection $expenseAmountByStaffId,
+        ?float $salaryAmountForSalesDate,
     ): array {
         if ($pumps->isEmpty()) {
             return [
@@ -1340,6 +1357,8 @@ class RoleDashboardController extends Controller
             $amexTotal = null;
             $billAmountTotal = null;
             $gasAmountTotal = null;
+            $oilAmountTotal = null;
+            $expenseAmountTotal = null;
             $shortTotal = null;
             if ($key !== '') {
                 $cashTotal = $cashByStaffId->get((int) $key);
@@ -1359,12 +1378,23 @@ class RoleDashboardController extends Controller
                 if ($gasAmountTotal === null) {
                     $gasAmountTotal = $gasAmountByStaffId->get((string) $key);
                 }
+                $oilAmountTotal = $oilAmountByStaffId->get((int) $key);
+                if ($oilAmountTotal === null) {
+                    $oilAmountTotal = $oilAmountByStaffId->get((string) $key);
+                }
+                $expenseAmountTotal = $expenseAmountByStaffId->get((int) $key);
+                if ($expenseAmountTotal === null) {
+                    $expenseAmountTotal = $expenseAmountByStaffId->get((string) $key);
+                }
                 $shortTotal = $groupTotal - (
                     (float) ($cashTotal ?? 0)
                     + (float) ($visaMasterTotal ?? 0)
                     + (float) ($amexTotal ?? 0)
                     + (float) ($billAmountTotal ?? 0)
                     - (float) ($gasAmountTotal ?? 0)
+                    - (float) ($oilAmountTotal ?? 0)
+                    + (float) ($salaryAmountForSalesDate ?? 0)
+                    + (float) ($expenseAmountTotal ?? 0)
                 );
             }
             $groups[] = [
@@ -1376,6 +1406,9 @@ class RoleDashboardController extends Controller
                 'amex_total' => $amexTotal !== null ? number_format((float) $amexTotal, 2) : '-',
                 'bill_amount' => $billAmountTotal !== null ? number_format((float) $billAmountTotal, 2) : '-',
                 'gas_amount' => $gasAmountTotal !== null ? number_format((float) $gasAmountTotal, 2) : '-',
+                'oil_amount' => $oilAmountTotal !== null ? number_format((float) $oilAmountTotal, 2) : '-',
+                'expense_amount' => $expenseAmountTotal !== null ? number_format((float) $expenseAmountTotal, 2) : '-',
+                'salary_amount' => $salaryAmountForSalesDate !== null ? number_format((float) $salaryAmountForSalesDate, 2) : '-',
                 'short_total' => $shortTotal !== null ? number_format((float) $shortTotal, 2) : '-',
             ];
         }
