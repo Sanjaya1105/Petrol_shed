@@ -9,6 +9,8 @@ use App\Models\CashCollection;
 use App\Models\Company;
 use App\Models\GasPrice;
 use App\Models\GasDetail;
+use App\Models\OilPrice;
+use App\Models\OilRecord;
 use App\Models\Price;
 use App\Models\Pump;
 use App\Models\Sale;
@@ -39,6 +41,7 @@ class RoleDashboardController extends Controller
         'cash-rec' => 'Cash Rec',
         'bill' => 'Bill',
         'gas' => 'Gas',
+        'oil' => 'Oil',
         'theme' => 'Theme',
     ];
 
@@ -49,7 +52,7 @@ class RoleDashboardController extends Controller
 
     public function showAdmin(Request $request, string $page): View
     {
-        abort_unless(in_array($page, ['home', 'categories', 'pumps', 'tanks', 'price', 'staff', 'sales', 'cash-rec', 'bill', 'gas'], true), 404);
+        abort_unless(in_array($page, ['home', 'categories', 'pumps', 'tanks', 'price', 'staff', 'sales', 'cash-rec', 'bill', 'gas', 'oil'], true), 404);
 
         return $this->renderPage('admin', 'Admin', $page, $request);
     }
@@ -406,6 +409,21 @@ class RoleDashboardController extends Controller
         return $this->saveRoleGasDetails($request, 'admin');
     }
 
+    public function saveAdminOilRecord(Request $request): RedirectResponse
+    {
+        return $this->saveRoleOilRecord($request, 'admin');
+    }
+
+    public function updateAdminOilRecord(Request $request, OilRecord $oilRecord): RedirectResponse
+    {
+        return $this->updateRoleOilRecord($request, $oilRecord, 'admin');
+    }
+
+    public function deleteAdminOilRecord(Request $request, OilRecord $oilRecord): RedirectResponse
+    {
+        return $this->deleteRoleOilRecord($request, $oilRecord, 'admin');
+    }
+
     public function storeAdminStaff(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -713,15 +731,22 @@ class RoleDashboardController extends Controller
         $gasFormDate = null;
         $priceFormDate = null;
         $priceDateMax = null;
+        $oilPrice = null;
         $homePriceDate = null;
         $homeCategoryPriceRows = collect();
         $homeStaffRows = collect();
+        $oilFormDate = null;
+        $oilDateMax = null;
+        $oilStaffOptions = collect();
+        $oilUnitPrice = null;
+        $oilRecords = collect();
         if (in_array($navPrefix, ['dev', 'admin'], true) && in_array($page, ['price', 'gas'], true)) {
             $priceFormDate = $this->resolvePriceFormDate($request);
             $priceDateMax = now()->toDateString();
             if ($page === 'price') {
                 $prices = $this->pricesForFormDate($priceFormDate);
                 $gasPrices = $this->gasPricesForFormDate($priceFormDate);
+                $oilPrice = $this->oilPriceForFormDate($priceFormDate);
             } else {
                 // On Gas page, use latest available price up to selected date.
                 $gasPrices = $this->gasPricesLookupForReportDate($priceFormDate);
@@ -753,6 +778,20 @@ class RoleDashboardController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name']);
+        }
+        if ($navPrefix === 'admin' && $page === 'oil') {
+            $oilFormDate = $this->resolveOilFormDate($request);
+            $oilDateMax = now()->toDateString();
+            $oilStaffOptions = Staff::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+            $oilUnitPrice = $this->oilPriceLookupForReportDate($oilFormDate);
+            $oilRecords = OilRecord::query()
+                ->with('staff')
+                ->whereDate('date', $oilFormDate)
+                ->orderBy('id')
+                ->get();
         }
 
         $pumps = null;
@@ -865,6 +904,7 @@ class RoleDashboardController extends Controller
         $cashCategoryTotalsByStaff = collect();
         $billAmountByStaffId = collect();
         $gasAmountByStaffId = collect();
+        $oilAmountByStaffId = collect();
         if (in_array($navPrefix, ['admin', 'dev', 'data-entry'], true) && $page === 'sales') {
             $yesterday = now()->subDay()->toDateString();
             $salesDatePickerMax = $yesterday;
@@ -895,6 +935,11 @@ class RoleDashboardController extends Controller
                 ->groupBy('staff_id')
                 ->pluck('total_bills', 'staff_id');
             $gasAmountByStaffId = $this->gasAmountByStaffForDate($salesReportDate);
+            $oilAmountByStaffId = OilRecord::query()
+                ->whereDate('date', $salesReportDate)
+                ->select('staff_id', DB::raw('SUM(total) as total_oil'))
+                ->groupBy('staff_id')
+                ->pluck('total_oil', 'staff_id');
         }
 
         $cashRecDate = null;
@@ -1016,6 +1061,7 @@ class RoleDashboardController extends Controller
             'gasFormDate' => $gasFormDate,
             'priceFormDate' => $priceFormDate,
             'priceDateMax' => $priceDateMax,
+            'oilPrice' => $oilPrice,
             'pumps' => $pumps,
             'staffMembers' => $staffMembers,
             'sales' => $sales,
@@ -1028,6 +1074,7 @@ class RoleDashboardController extends Controller
             'cashCategoryTotalsByStaff' => $cashCategoryTotalsByStaff,
             'billAmountByStaffId' => $billAmountByStaffId,
             'gasAmountByStaffId' => $gasAmountByStaffId,
+            'oilAmountByStaffId' => $oilAmountByStaffId,
             'cashRecDate' => $cashRecDate,
             'cashRecDateMax' => $cashRecDateMax,
             'cashRecStaffOptions' => $cashRecStaffOptions,
@@ -1044,6 +1091,11 @@ class RoleDashboardController extends Controller
             'homePriceDate' => $homePriceDate,
             'homeCategoryPriceRows' => $homeCategoryPriceRows,
             'homeStaffRows' => $homeStaffRows,
+            'oilFormDate' => $oilFormDate,
+            'oilDateMax' => $oilDateMax,
+            'oilStaffOptions' => $oilStaffOptions,
+            'oilUnitPrice' => $oilUnitPrice,
+            'oilRecords' => $oilRecords,
         ]);
     }
 
@@ -1405,6 +1457,33 @@ class RoleDashboardController extends Controller
             ->pluck('price', 'gas_type');
     }
 
+    private function oilPriceForFormDate(string $date): ?float
+    {
+        $value = OilPrice::query()
+            ->whereDate('date', $date)
+            ->value('price');
+
+        return $value !== null ? (float) $value : null;
+    }
+
+    private function oilPriceLookupForReportDate(string $reportDate): ?float
+    {
+        $value = OilPrice::query()
+            ->whereDate('date', '<=', $reportDate)
+            ->orderByDesc('date')
+            ->value('price');
+
+        if ($value !== null) {
+            return (float) $value;
+        }
+
+        $latestOverall = OilPrice::query()
+            ->orderByDesc('date')
+            ->value('price');
+
+        return $latestOverall !== null ? (float) $latestOverall : null;
+    }
+
     /**
      * Latest gas price per type in effect on the given date (date <= report date).
      *
@@ -1544,6 +1623,8 @@ class RoleDashboardController extends Controller
             'gas_prices.l' => ['nullable', 'numeric', 'min:0'],
             'gas_prices.m' => ['nullable', 'numeric', 'min:0'],
             'gas_prices.s' => ['nullable', 'numeric', 'min:0'],
+            'oil_price' => ['nullable', 'numeric', 'decimal:0,4', 'min:0'],
+            'oil_liters' => ['nullable', 'numeric', 'decimal:0,4', 'gt:0', 'required_with:oil_price'],
         ]);
 
         $categoryIds = Category::query()->pluck('id')->all();
@@ -1595,6 +1676,27 @@ class RoleDashboardController extends Controller
                     'date' => $date,
                 ],
                 ['price' => $value]
+            );
+        }
+
+        $inputOilPrice = $validated['oil_price'] ?? null;
+        $inputOilLiters = $validated['oil_liters'] ?? null;
+        if ($inputOilPrice === null || $inputOilPrice === '') {
+            OilPrice::query()
+                ->whereDate('date', $date)
+                ->delete();
+        } else {
+            if ($inputOilLiters === null || $inputOilLiters === '' || (float) $inputOilLiters <= 0) {
+                throw ValidationException::withMessages([
+                    'oil_liters' => 'Liter amount is required when oil price is entered.',
+                ]);
+            }
+            $unitPrice = round(((float) $inputOilPrice) / ((float) $inputOilLiters), 2);
+            OilPrice::query()->updateOrCreate(
+                [
+                    'date' => $date,
+                ],
+                ['price' => $unitPrice]
             );
         }
 
@@ -1670,6 +1772,109 @@ class RoleDashboardController extends Controller
         return redirect()
             ->to($back)
             ->with('status', 'Cash record saved successfully.');
+    }
+
+    private function resolveOilFormDate(Request $request): string
+    {
+        $today = now()->startOfDay();
+        $default = $today->toDateString();
+        $raw = $request->query('oil_date');
+        if (! is_string($raw) || $raw === '') {
+            return $default;
+        }
+        try {
+            $picked = Carbon::parse($raw)->startOfDay();
+        } catch (\Throwable) {
+            return $default;
+        }
+        if ($picked->gt($today)) {
+            return $default;
+        }
+
+        return $picked->toDateString();
+    }
+
+    private function saveRoleOilRecord(Request $request, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'oil_date' => ['required', 'date', 'before_or_equal:today'],
+            'staff_id' => ['required', 'integer', Rule::exists('staff', 'id')->where('is_active', true)],
+            'oil_amount' => ['required', 'numeric', 'gt:0'],
+        ]);
+
+        $date = Carbon::parse($validated['oil_date'])->toDateString();
+        $unitPrice = $this->oilPriceLookupForReportDate($date);
+        if ($unitPrice === null) {
+            throw ValidationException::withMessages([
+                'oil_amount' => 'Oil unit price is not set for the selected date.',
+            ]);
+        }
+        $oilAmount = (float) $validated['oil_amount'];
+        $total = round($oilAmount * $unitPrice, 2);
+
+        OilRecord::query()->updateOrCreate(
+            [
+                'staff_id' => (int) $validated['staff_id'],
+                'date' => $date,
+            ],
+            [
+                'oil_amount' => $oilAmount,
+                'total' => $total,
+            ]
+        );
+
+        $back = route($rolePrefix.'.show', ['page' => 'oil']).'?'.http_build_query([
+            'oil_date' => $date,
+        ]);
+
+        return redirect()
+            ->to($back)
+            ->with('status', 'Oil record saved successfully.');
+    }
+
+    private function updateRoleOilRecord(Request $request, OilRecord $oilRecord, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'staff_id' => ['required', 'integer', Rule::exists('staff', 'id')->where('is_active', true)],
+            'oil_amount' => ['required', 'numeric', 'gt:0'],
+            'oil_date' => ['nullable', 'date', 'before_or_equal:today'],
+        ]);
+
+        $recordDate = Carbon::parse($oilRecord->date)->toDateString();
+        $unitPrice = $this->oilPriceLookupForReportDate($recordDate);
+        if ($unitPrice === null) {
+            throw ValidationException::withMessages([
+                'oil_amount' => 'Oil unit price is not set for this record date.',
+            ]);
+        }
+        $oilAmount = (float) $validated['oil_amount'];
+
+        $oilRecord->update([
+            'staff_id' => (int) $validated['staff_id'],
+            'oil_amount' => $oilAmount,
+            'total' => round($oilAmount * $unitPrice, 2),
+        ]);
+
+        $backDate = isset($validated['oil_date']) && $validated['oil_date'] !== ''
+            ? Carbon::parse($validated['oil_date'])->toDateString()
+            : $recordDate;
+
+        return redirect()
+            ->to(route($rolePrefix.'.show', ['page' => 'oil']).'?'.http_build_query(['oil_date' => $backDate]))
+            ->with('status', 'Oil record updated successfully.');
+    }
+
+    private function deleteRoleOilRecord(Request $request, OilRecord $oilRecord, string $rolePrefix): RedirectResponse
+    {
+        $oilRecord->delete();
+        $rawDate = $request->input('oil_date');
+        $backDate = is_string($rawDate) && $rawDate !== ''
+            ? Carbon::parse($rawDate)->toDateString()
+            : now()->toDateString();
+
+        return redirect()
+            ->to(route($rolePrefix.'.show', ['page' => 'oil']).'?'.http_build_query(['oil_date' => $backDate]))
+            ->with('status', 'Oil record deleted successfully.');
     }
 
     private function deleteRoleCashRec(Request $request, CashCollection $cashCollection, string $rolePrefix): RedirectResponse

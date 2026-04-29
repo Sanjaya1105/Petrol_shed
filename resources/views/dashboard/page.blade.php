@@ -793,7 +793,8 @@
                             })->values();
                             $billAmountByStaffId = $billAmountByStaffId ?? collect();
                             $gasAmountByStaffId = $gasAmountByStaffId ?? collect();
-                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey, $cashByStaffId, $cashCategoryTotalsByStaff, $billAmountByStaffId, $gasAmountByStaffId) {
+                            $oilAmountByStaffId = $oilAmountByStaffId ?? collect();
+                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey, $cashByStaffId, $cashCategoryTotalsByStaff, $billAmountByStaffId, $gasAmountByStaffId, $oilAmountByStaffId) {
                                 $rows = $byStaffKey->get($key)->sortBy('pump_name', SORT_NATURAL)->values();
                                 $groupTotal = $rows
                                     ->filter(fn ($r) => $r['line_total'] !== null)
@@ -804,6 +805,7 @@
                                 $amexTotal = null;
                                 $billAmountTotal = null;
                                 $gasAmountTotal = null;
+                                $oilAmountTotal = null;
                                 $shortTotal = null;
                                 if ($key !== '') {
                                     $cashTotal = $cashByStaffId->get((int) $key);
@@ -823,13 +825,18 @@
                                     if ($gasAmountTotal === null) {
                                         $gasAmountTotal = $gasAmountByStaffId->get((string) $key);
                                     }
+                                    $oilAmountTotal = $oilAmountByStaffId->get((int) $key);
+                                    if ($oilAmountTotal === null) {
+                                        $oilAmountTotal = $oilAmountByStaffId->get((string) $key);
+                                    }
 
                                     $sumOfCollections =
                                         (float) ($cashTotal ?? 0)
                                         + (float) ($visaMasterTotal ?? 0)
                                         + (float) ($amexTotal ?? 0)
                                         + (float) ($billAmountTotal ?? 0)
-                                        - (float) ($gasAmountTotal ?? 0);
+                                        - (float) ($gasAmountTotal ?? 0)
+                                        - (float) ($oilAmountTotal ?? 0);
                                     $shortTotal = (float) $groupTotal - $sumOfCollections;
                                 }
 
@@ -842,6 +849,7 @@
                                     'amex_total' => number_format((float) ($amexTotal ?? 0), 2),
                                     'bill_amount' => number_format((float) ($billAmountTotal ?? 0), 2),
                                     'gas_amount' => number_format((float) ($gasAmountTotal ?? 0), 2),
+                                    'oil_amount' => number_format((float) ($oilAmountTotal ?? 0), 2),
                                     'short_total' => $shortTotal !== null ? number_format((float) $shortTotal, 2) : number_format((float) $groupTotal, 2),
                                     'group_total' => $groupHasTotals ? number_format((float) $groupTotal, 2) : '-',
                                 ];
@@ -901,6 +909,7 @@
                                         <th class="text-left px-3 py-2 font-semibold">Amex</th>
                                         <th class="text-left px-3 py-2 font-semibold">Bill amount</th>
                                         <th class="text-left px-3 py-2 font-semibold">Gas Amount</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Oil Amount</th>
                                         <th class="text-left px-3 py-2 font-semibold">Short</th>
                                     </tr>
                                 </thead>
@@ -937,6 +946,7 @@
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['amex_total'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['bill_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['gas_amount'] }}</td>
+                                                    <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['oil_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['short_total'] }}</td>
                                                 @endif
                                             </tr>
@@ -948,7 +958,7 @@
                                         <tr>
                                             <td class="px-3 py-2 font-semibold text-right" colspan="7">Grand total</td>
                                             <td class="px-3 py-2 font-semibold">{{ number_format((float) $staffReportGrandTotal, 2) }}</td>
-                                            <td class="px-3 py-2" colspan="6"></td>
+                                            <td class="px-3 py-2" colspan="7"></td>
                                         </tr>
                                     </tfoot>
                                 @endif
@@ -1545,7 +1555,71 @@
                         Save gas prices
                     </button>
                 </form>
+
+                <form method="post" action="{{ route($navPrefix.'.prices.save') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                    @csrf
+                    <input type="hidden" name="price_date" value="{{ old('price_date', $priceFormDate) }}">
+                    <h3 class="text-sm font-semibold">Oil price</h3>
+                    <div>
+                        <label for="oil_liters" class="block text-sm font-medium mb-1">Liter amount</label>
+                        <input
+                            type="number"
+                            name="oil_liters"
+                            id="oil_liters"
+                            value="{{ old('oil_liters') }}"
+                            min="0"
+                            step="0.0001"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                    </div>
+                    <div>
+                        <label for="oil_price" class="block text-sm font-medium mb-1">Oil price (total)</label>
+                        <input
+                            type="number"
+                            name="oil_price"
+                            id="oil_price"
+                            value="{{ old('oil_price') }}"
+                            min="0"
+                            step="0.0001"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                    </div>
+                    <div>
+                        <label for="oil_unit_price_preview" class="block text-sm font-medium mb-1">Unit price (per liter)</label>
+                        <input
+                            type="text"
+                            id="oil_unit_price_preview"
+                            value="{{ $oilPrice !== null ? number_format((float) $oilPrice, 2, '.', '') : '' }}"
+                            readonly
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
+                        >
+                    </div>
+                    <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                        Save oil price
+                    </button>
+                </form>
             </div>
+            <script>
+                (() => {
+                    const litersInput = document.getElementById('oil_liters');
+                    const totalInput = document.getElementById('oil_price');
+                    const unitPreview = document.getElementById('oil_unit_price_preview');
+                    if (!litersInput || !totalInput || !unitPreview) return;
+
+                    const recalc = () => {
+                        const liters = Number((litersInput.value || '').trim());
+                        const total = Number((totalInput.value || '').trim());
+                        if (!Number.isFinite(liters) || liters <= 0 || !Number.isFinite(total)) {
+                            return;
+                        }
+                        unitPreview.value = (total / liters).toFixed(2);
+                    };
+
+                    litersInput.addEventListener('input', recalc);
+                    totalInput.addEventListener('input', recalc);
+                    recalc();
+                })();
+            </script>
         @elseif (in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'cash-rec')
             <div class="space-y-3">
                 <h3 class="text-sm font-semibold">Cash</h3>
@@ -2498,6 +2572,205 @@
                     })();
                 </script>
             </div>
+        @elseif ($navPrefix === 'admin' && $page === 'oil')
+            @php
+                $oilDate = $oilFormDate ?? now()->toDateString();
+                $oilDateMax = $oilDateMax ?? now()->toDateString();
+                $oilStaffOptions = $oilStaffOptions ?? collect();
+                $oilUnitPrice = $oilUnitPrice ?? null;
+                $oilRecords = $oilRecords ?? collect();
+            @endphp
+            <div class="space-y-4">
+                <h3 class="text-sm font-semibold">Oil table</h3>
+                <form method="get" action="{{ route($navPrefix.'.show', ['page' => 'oil']) }}" class="max-w-xs">
+                    <label for="oil_date" class="block text-sm font-medium mb-1">Date</label>
+                    <div id="oil_date_field" class="w-full cursor-pointer rounded-md">
+                        <input
+                            type="date"
+                            id="oil_date"
+                            name="oil_date"
+                            value="{{ $oilDate }}"
+                            max="{{ $oilDateMax }}"
+                            onchange="this.form.submit()"
+                            class="w-full cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                    </div>
+                </form>
+
+                <form method="post" action="{{ route($navPrefix.'.oil.record.save') }}" class="bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5 space-y-4">
+                    @csrf
+                    <input type="hidden" name="oil_date" value="{{ $oilDate }}">
+                    <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
+                        <thead class="bg-gray-100 dark:bg-gray-800">
+                            <tr>
+                                <th class="text-left px-3 py-2 font-semibold">Staff</th>
+                                <th class="text-left px-3 py-2 font-semibold">Oil amount</th>
+                                <th class="text-left px-3 py-2 font-semibold">Unit price</th>
+                                <th class="text-left px-3 py-2 font-semibold">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-t border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 align-top">
+                                    <select
+                                        id="oil_staff_id"
+                                        name="staff_id"
+                                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                        required
+                                    >
+                                        <option value="">Select staff</option>
+                                        @foreach ($oilStaffOptions as $staffOption)
+                                            <option value="{{ $staffOption->id }}" @selected((string) old('staff_id') === (string) $staffOption->id)>{{ $staffOption->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </td>
+                                <td class="px-3 py-2 align-top">
+                                    <input
+                                        type="number"
+                                        id="oil_amount"
+                                        name="oil_amount"
+                                        min="0"
+                                        step="0.01"
+                                        value="{{ old('oil_amount') }}"
+                                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                        required
+                                    >
+                                </td>
+                                <td class="px-3 py-2 align-top">
+                                    <input
+                                        type="text"
+                                        id="oil_unit_price"
+                                        value="{{ $oilUnitPrice !== null ? number_format((float) $oilUnitPrice, 2, '.', '') : '' }}"
+                                        readonly
+                                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                    >
+                                </td>
+                                <td class="px-3 py-2 align-top">
+                                    <input
+                                        type="text"
+                                        id="oil_total"
+                                        value=""
+                                        readonly
+                                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-[#0f0f0f] text-black dark:text-black px-3 py-2 text-sm outline-none cursor-not-allowed"
+                                    >
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="flex justify-end">
+                        <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                            Save oil record
+                        </button>
+                    </div>
+                </form>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
+                        <thead class="bg-gray-100 dark:bg-gray-800">
+                            <tr>
+                                <th class="text-left px-3 py-2 font-semibold">Date</th>
+                                <th class="text-left px-3 py-2 font-semibold">Staff</th>
+                                <th class="text-left px-3 py-2 font-semibold">Oil amount</th>
+                                <th class="text-left px-3 py-2 font-semibold">Total</th>
+                                <th class="text-left px-3 py-2 font-semibold">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($oilRecords as $record)
+                                @php $oilUpdateFormId = 'oil_update_'.$record->id; @endphp
+                                <tr class="border-t border-gray-200 dark:border-gray-700">
+                                    <td class="px-3 py-2 align-top">{{ \Illuminate\Support\Carbon::parse($record->date)->toDateString() }}</td>
+                                    <td class="px-3 py-2 align-top">
+                                            <select
+                                                name="staff_id"
+                                                form="{{ $oilUpdateFormId }}"
+                                                class="w-full sm:w-44 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-2 py-1.5 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                required
+                                            >
+                                                @foreach ($oilStaffOptions as $staffOption)
+                                                    <option value="{{ $staffOption->id }}" @selected((int) $record->staff_id === (int) $staffOption->id)>{{ $staffOption->name }}</option>
+                                                @endforeach
+                                            </select>
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                            <input
+                                                type="number"
+                                                name="oil_amount"
+                                                form="{{ $oilUpdateFormId }}"
+                                                min="0"
+                                                step="0.01"
+                                                value="{{ number_format((float) $record->oil_amount, 2, '.', '') }}"
+                                                class="w-full sm:w-32 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-2 py-1.5 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                required
+                                            >
+                                    </td>
+                                    <td class="px-3 py-2 align-top">{{ number_format((float) $record->total, 2) }}</td>
+                                    <td class="px-3 py-2 align-top">
+                                            <div class="flex items-center gap-2">
+                                                <form id="{{ $oilUpdateFormId }}" method="post" action="{{ route($navPrefix.'.oil.record.update', $record) }}">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <input type="hidden" name="oil_date" value="{{ $oilDate }}">
+                                                </form>
+                                                <button type="submit" form="{{ $oilUpdateFormId }}" class="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                    Update
+                                                </button>
+                                                <form method="post" action="{{ route($navPrefix.'.oil.record.delete', $record) }}" onsubmit="return confirm('Delete this oil record?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <input type="hidden" name="oil_date" value="{{ $oilDate }}">
+                                                    <button type="submit" class="rounded-md border border-red-300 text-red-700 dark:border-red-700 dark:text-red-400 px-2 py-1.5 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/30">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr class="border-t border-gray-200 dark:border-gray-700">
+                                    <td colspan="5" class="px-3 py-3 text-sm text-[#706f6c] dark:text-[#A1A09A]">No oil records for selected date.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <script>
+                (() => {
+                    const oilDateInput = document.getElementById('oil_date');
+                    const oilDateField = document.getElementById('oil_date_field');
+                    const amountInput = document.getElementById('oil_amount');
+                    const unitPriceInput = document.getElementById('oil_unit_price');
+                    const totalInput = document.getElementById('oil_total');
+                    if (oilDateField && oilDateInput) {
+                        oilDateField.addEventListener('click', () => {
+                            if (typeof oilDateInput.showPicker === 'function') {
+                                try {
+                                    oilDateInput.showPicker();
+                                } catch (_) {
+                                    oilDateInput.focus();
+                                }
+                            } else {
+                                oilDateInput.focus();
+                            }
+                        });
+                    }
+                    if (!amountInput || !unitPriceInput || !totalInput) return;
+
+                    const recalc = () => {
+                        const qty = Number((amountInput.value || '').trim());
+                        const unit = Number((unitPriceInput.value || '').trim());
+                        if (!Number.isFinite(qty) || !Number.isFinite(unit)) {
+                            totalInput.value = '';
+                            return;
+                        }
+                        totalInput.value = (qty * unit).toFixed(2);
+                    };
+
+                    amountInput.addEventListener('input', recalc);
+                    recalc();
+                })();
+            </script>
         @elseif ($navPrefix === 'admin' && $page === 'home')
             @php
                 $homeRows = $homeCategoryPriceRows ?? collect();

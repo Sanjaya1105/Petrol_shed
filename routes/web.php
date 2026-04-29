@@ -58,8 +58,11 @@ Route::middleware(['auth', 'role:2'])->prefix('admin')->name('admin.')->group(fu
     Route::post('/bill', [RoleDashboardController::class, 'saveAdminBill'])->name('bill.save');
     Route::get('/bill/category-price', [RoleDashboardController::class, 'getAdminBillCategoryPrice'])->name('bill.category-price');
     Route::post('/gas/details', [RoleDashboardController::class, 'saveAdminGasDetails'])->name('gas.details.save');
+    Route::post('/oil/record', [RoleDashboardController::class, 'saveAdminOilRecord'])->name('oil.record.save');
+    Route::put('/oil/record/{oilRecord}', [RoleDashboardController::class, 'updateAdminOilRecord'])->name('oil.record.update');
+    Route::delete('/oil/record/{oilRecord}', [RoleDashboardController::class, 'deleteAdminOilRecord'])->name('oil.record.delete');
     Route::get('/{page}', [RoleDashboardController::class, 'showAdmin'])
-        ->where('page', 'home|categories|pumps|tanks|price|staff|sales|cash-rec|bill|gas')
+        ->where('page', 'home|categories|pumps|tanks|price|staff|sales|cash-rec|bill|gas|oil')
         ->name('show');
 });
 
