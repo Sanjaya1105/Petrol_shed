@@ -762,40 +762,56 @@ class RoleDashboardController extends Controller
         ) {
             $pumpQuery = Pump::query();
             if ($page === 'pumps') {
-                $pumpQuery
-                    ->select('pumps.*')
-                    ->join('category', 'pumps.category_id', '=', 'category.id')
-                    ->orderByRaw("
-                        CASE LOWER(REPLACE(REPLACE(category.category, '-', ''), ' ', ''))
-                            WHEN 'diesel' THEN 1
-                            WHEN 'superdiesel' THEN 2
-                            WHEN 'petrol' THEN 3
-                            WHEN 'superpetrol' THEN 4
-                            WHEN 'kerosene' THEN 999
-                            ELSE 5
-                        END
-                    ")
-                    ->orderByRaw("
-                        CASE
-                            WHEN LOWER(REPLACE(REPLACE(category.category, '-', ''), ' ', '')) = 'petrol'
-                            THEN CAST(
-                                REPLACE(
-                                    REPLACE(
-                                        REPLACE(LOWER(pumps.pump_name), 'petrol', ''),
-                                        '-', ''
-                                    ),
-                                    ' ',
-                                    ''
-                                ) AS UNSIGNED
-                            )
-                            ELSE 0
-                        END
-                    ")
-                    ->orderBy('pumps.pump_name');
+                $pumpQuery->select('pumps.*');
             } else {
                 $pumpQuery->orderBy('id');
             }
             $pumps = $pumpQuery->get();
+            if ($page === 'pumps' && $pumps->isNotEmpty()) {
+                $categoryNamesById = Category::query()
+                    ->pluck('category', 'id')
+                    ->map(fn ($name) => is_string($name) ? strtolower(trim($name)) : '');
+                $categoryRank = [
+                    'diesel' => 1,
+                    'superdiesel' => 2,
+                    'petrol' => 3,
+                    'superpetrol' => 4,
+                    'kerosene' => 999,
+                ];
+                $extractNumericSuffix = static function (?string $name): int {
+                    if (! is_string($name) || $name === '') {
+                        return PHP_INT_MAX;
+                    }
+                    if (preg_match('/(\d+)\s*$/', $name, $m) === 1) {
+                        return (int) $m[1];
+                    }
+
+                    return PHP_INT_MAX;
+                };
+
+                $pumps = $pumps->sort(function ($a, $b) use ($categoryNamesById, $categoryRank, $extractNumericSuffix) {
+                    $catA = (string) ($categoryNamesById->get($a->category_id) ?? '');
+                    $catB = (string) ($categoryNamesById->get($b->category_id) ?? '');
+                    $normA = str_replace(['-', ' '], '', $catA);
+                    $normB = str_replace(['-', ' '], '', $catB);
+
+                    $rankA = $categoryRank[$normA] ?? 5;
+                    $rankB = $categoryRank[$normB] ?? 5;
+                    if ($rankA !== $rankB) {
+                        return $rankA <=> $rankB;
+                    }
+
+                    if ($normA === 'petrol' && $normB === 'petrol') {
+                        $numA = $extractNumericSuffix($a->pump_name);
+                        $numB = $extractNumericSuffix($b->pump_name);
+                        if ($numA !== $numB) {
+                            return $numA <=> $numB;
+                        }
+                    }
+
+                    return strnatcasecmp((string) $a->pump_name, (string) $b->pump_name);
+                })->values();
+            }
         }
 
         $staffMembers = null;
