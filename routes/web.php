@@ -61,8 +61,9 @@ Route::middleware(['auth', 'role:2'])->prefix('admin')->name('admin.')->group(fu
     Route::post('/oil/record', [RoleDashboardController::class, 'saveAdminOilRecord'])->name('oil.record.save');
     Route::put('/oil/record/{oilRecord}', [RoleDashboardController::class, 'updateAdminOilRecord'])->name('oil.record.update');
     Route::delete('/oil/record/{oilRecord}', [RoleDashboardController::class, 'deleteAdminOilRecord'])->name('oil.record.delete');
+    Route::post('/slary', [RoleDashboardController::class, 'saveAdminSalaryAmount'])->name('slary.save');
     Route::get('/{page}', [RoleDashboardController::class, 'showAdmin'])
-        ->where('page', 'home|categories|pumps|tanks|price|staff|sales|cash-rec|bill|gas|oil')
+        ->where('page', 'home|categories|pumps|tanks|price|staff|sales|cash-rec|bill|gas|oil|slary')
         ->name('show');
 });
 

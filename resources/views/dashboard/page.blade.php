@@ -794,7 +794,8 @@
                             $billAmountByStaffId = $billAmountByStaffId ?? collect();
                             $gasAmountByStaffId = $gasAmountByStaffId ?? collect();
                             $oilAmountByStaffId = $oilAmountByStaffId ?? collect();
-                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey, $cashByStaffId, $cashCategoryTotalsByStaff, $billAmountByStaffId, $gasAmountByStaffId, $oilAmountByStaffId) {
+                            $salaryAmountForSalesDate = $salaryAmountForSalesDate ?? null;
+                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey, $cashByStaffId, $cashCategoryTotalsByStaff, $billAmountByStaffId, $gasAmountByStaffId, $oilAmountByStaffId, $salaryAmountForSalesDate) {
                                 $rows = $byStaffKey->get($key)->sortBy('pump_name', SORT_NATURAL)->values();
                                 $groupTotal = $rows
                                     ->filter(fn ($r) => $r['line_total'] !== null)
@@ -836,7 +837,8 @@
                                         + (float) ($amexTotal ?? 0)
                                         + (float) ($billAmountTotal ?? 0)
                                         - (float) ($gasAmountTotal ?? 0)
-                                        - (float) ($oilAmountTotal ?? 0);
+                                        - (float) ($oilAmountTotal ?? 0)
+                                        - (float) ($salaryAmountForSalesDate ?? 0);
                                     $shortTotal = (float) $groupTotal - $sumOfCollections;
                                 }
 
@@ -850,6 +852,7 @@
                                     'bill_amount' => number_format((float) ($billAmountTotal ?? 0), 2),
                                     'gas_amount' => number_format((float) ($gasAmountTotal ?? 0), 2),
                                     'oil_amount' => number_format((float) ($oilAmountTotal ?? 0), 2),
+                                    'salary_amount' => $salaryAmountForSalesDate !== null ? number_format((float) $salaryAmountForSalesDate, 2) : '0.00',
                                     'short_total' => $shortTotal !== null ? number_format((float) $shortTotal, 2) : number_format((float) $groupTotal, 2),
                                     'group_total' => $groupHasTotals ? number_format((float) $groupTotal, 2) : '-',
                                 ];
@@ -910,6 +913,7 @@
                                         <th class="text-left px-3 py-2 font-semibold">Bill amount</th>
                                         <th class="text-left px-3 py-2 font-semibold">Gas Amount</th>
                                         <th class="text-left px-3 py-2 font-semibold">Oil Amount</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Salary</th>
                                         <th class="text-left px-3 py-2 font-semibold">Short</th>
                                     </tr>
                                 </thead>
@@ -947,6 +951,7 @@
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['bill_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['gas_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['oil_amount'] }}</td>
+                                                    <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['salary_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['short_total'] }}</td>
                                                 @endif
                                             </tr>
@@ -958,7 +963,7 @@
                                         <tr>
                                             <td class="px-3 py-2 font-semibold text-right" colspan="7">Grand total</td>
                                             <td class="px-3 py-2 font-semibold">{{ number_format((float) $staffReportGrandTotal, 2) }}</td>
-                                            <td class="px-3 py-2" colspan="7"></td>
+                                            <td class="px-3 py-2" colspan="8"></td>
                                         </tr>
                                     </tfoot>
                                 @endif
@@ -2769,6 +2774,72 @@
 
                     amountInput.addEventListener('input', recalc);
                     recalc();
+                })();
+            </script>
+        @elseif ($navPrefix === 'admin' && $page === 'slary')
+            @php
+                $salaryDateDefault = old('salary_date', $salaryFormDate ?? now()->toDateString());
+                $salaryDateMax = $salaryDateMax ?? now()->toDateString();
+            @endphp
+            <div class="max-w-xl space-y-3">
+                <h3 class="text-sm font-semibold">Salary</h3>
+                <form method="get" action="{{ route($navPrefix.'.show', ['page' => 'slary']) }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                    <div>
+                        <label for="salary_date" class="block text-sm font-medium mb-1">Date</label>
+                        <div id="salary_date_field" class="w-full cursor-pointer rounded-md">
+                            <input
+                                type="date"
+                                id="salary_date"
+                                name="salary_date"
+                                value="{{ $salaryDateDefault }}"
+                                max="{{ $salaryDateMax }}"
+                                class="w-full cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                required
+                            >
+                        </div>
+                    </div>
+                </form>
+                <form method="post" action="{{ route($navPrefix.'.slary.save') }}" class="space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                    @csrf
+                    <input type="hidden" name="salary_date" value="{{ $salaryDateDefault }}">
+                    <div>
+                        <label for="salary_amount" class="block text-sm font-medium mb-1">Amount</label>
+                        <input
+                            type="number"
+                            id="salary_amount"
+                            name="amount"
+                            value="{{ old('amount', $salaryAmount !== null ? number_format((float) $salaryAmount, 2, '.', '') : '') }}"
+                            min="0"
+                            step="0.01"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                            required
+                        >
+                    </div>
+                    <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                        Save
+                    </button>
+                </form>
+            </div>
+            <script>
+                (() => {
+                    const salaryDateInput = document.getElementById('salary_date');
+                    const salaryDateField = document.getElementById('salary_date_field');
+                    if (!salaryDateInput || !salaryDateField) return;
+
+                    salaryDateField.addEventListener('click', () => {
+                        if (typeof salaryDateInput.showPicker === 'function') {
+                            try {
+                                salaryDateInput.showPicker();
+                            } catch (_) {
+                                salaryDateInput.focus();
+                            }
+                        } else {
+                            salaryDateInput.focus();
+                        }
+                    });
+                    salaryDateInput.addEventListener('change', () => {
+                        salaryDateInput.form?.submit();
+                    });
                 })();
             </script>
         @elseif ($navPrefix === 'admin' && $page === 'home')

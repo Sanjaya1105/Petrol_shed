@@ -11,6 +11,7 @@ use App\Models\GasPrice;
 use App\Models\GasDetail;
 use App\Models\OilPrice;
 use App\Models\OilRecord;
+use App\Models\SalaryAmount;
 use App\Models\Price;
 use App\Models\Pump;
 use App\Models\Sale;
@@ -42,6 +43,7 @@ class RoleDashboardController extends Controller
         'bill' => 'Bill',
         'gas' => 'Gas',
         'oil' => 'Oil',
+        'slary' => 'Salary',
         'theme' => 'Theme',
     ];
 
@@ -52,7 +54,7 @@ class RoleDashboardController extends Controller
 
     public function showAdmin(Request $request, string $page): View
     {
-        abort_unless(in_array($page, ['home', 'categories', 'pumps', 'tanks', 'price', 'staff', 'sales', 'cash-rec', 'bill', 'gas', 'oil'], true), 404);
+        abort_unless(in_array($page, ['home', 'categories', 'pumps', 'tanks', 'price', 'staff', 'sales', 'cash-rec', 'bill', 'gas', 'oil', 'slary'], true), 404);
 
         return $this->renderPage('admin', 'Admin', $page, $request);
     }
@@ -414,6 +416,11 @@ class RoleDashboardController extends Controller
         return $this->saveRoleOilRecord($request, 'admin');
     }
 
+    public function saveAdminSalaryAmount(Request $request): RedirectResponse
+    {
+        return $this->saveRoleSalaryAmount($request, 'admin');
+    }
+
     public function updateAdminOilRecord(Request $request, OilRecord $oilRecord): RedirectResponse
     {
         return $this->updateRoleOilRecord($request, $oilRecord, 'admin');
@@ -740,6 +747,9 @@ class RoleDashboardController extends Controller
         $oilStaffOptions = collect();
         $oilUnitPrice = null;
         $oilRecords = collect();
+        $salaryFormDate = null;
+        $salaryDateMax = null;
+        $salaryAmount = null;
         if (in_array($navPrefix, ['dev', 'admin'], true) && in_array($page, ['price', 'gas'], true)) {
             $priceFormDate = $this->resolvePriceFormDate($request);
             $priceDateMax = now()->toDateString();
@@ -792,6 +802,14 @@ class RoleDashboardController extends Controller
                 ->whereDate('date', $oilFormDate)
                 ->orderBy('id')
                 ->get();
+        }
+        if ($navPrefix === 'admin' && $page === 'slary') {
+            $salaryFormDate = $this->resolveSalaryFormDate($request);
+            $salaryDateMax = now()->toDateString();
+            $salaryAmount = SalaryAmount::query()
+                ->whereDate('date', $salaryFormDate)
+                ->value('amount');
+            $salaryAmount = $salaryAmount !== null ? (float) $salaryAmount : null;
         }
 
         $pumps = null;
@@ -905,6 +923,7 @@ class RoleDashboardController extends Controller
         $billAmountByStaffId = collect();
         $gasAmountByStaffId = collect();
         $oilAmountByStaffId = collect();
+        $salaryAmountForSalesDate = null;
         if (in_array($navPrefix, ['admin', 'dev', 'data-entry'], true) && $page === 'sales') {
             $yesterday = now()->subDay()->toDateString();
             $salesDatePickerMax = $yesterday;
@@ -940,6 +959,7 @@ class RoleDashboardController extends Controller
                 ->select('staff_id', DB::raw('SUM(total) as total_oil'))
                 ->groupBy('staff_id')
                 ->pluck('total_oil', 'staff_id');
+            $salaryAmountForSalesDate = $this->salaryAmountLookupForReportDate($salesReportDate);
         }
 
         $cashRecDate = null;
@@ -1075,6 +1095,7 @@ class RoleDashboardController extends Controller
             'billAmountByStaffId' => $billAmountByStaffId,
             'gasAmountByStaffId' => $gasAmountByStaffId,
             'oilAmountByStaffId' => $oilAmountByStaffId,
+            'salaryAmountForSalesDate' => $salaryAmountForSalesDate,
             'cashRecDate' => $cashRecDate,
             'cashRecDateMax' => $cashRecDateMax,
             'cashRecStaffOptions' => $cashRecStaffOptions,
@@ -1096,6 +1117,9 @@ class RoleDashboardController extends Controller
             'oilStaffOptions' => $oilStaffOptions,
             'oilUnitPrice' => $oilUnitPrice,
             'oilRecords' => $oilRecords,
+            'salaryFormDate' => $salaryFormDate,
+            'salaryDateMax' => $salaryDateMax,
+            'salaryAmount' => $salaryAmount,
         ]);
     }
 
@@ -1830,6 +1854,67 @@ class RoleDashboardController extends Controller
         return redirect()
             ->to($back)
             ->with('status', 'Oil record saved successfully.');
+    }
+
+    private function resolveSalaryFormDate(Request $request): string
+    {
+        $today = now()->startOfDay();
+        $default = $today->toDateString();
+        $raw = $request->query('salary_date');
+        if (! is_string($raw) || $raw === '') {
+            return $default;
+        }
+        try {
+            $picked = Carbon::parse($raw)->startOfDay();
+        } catch (\Throwable) {
+            return $default;
+        }
+        if ($picked->gt($today)) {
+            return $default;
+        }
+
+        return $picked->toDateString();
+    }
+
+    private function saveRoleSalaryAmount(Request $request, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'salary_date' => ['required', 'date', 'before_or_equal:today'],
+            'amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $date = Carbon::parse($validated['salary_date'])->toDateString();
+
+        SalaryAmount::query()->updateOrCreate(
+            ['date' => $date],
+            ['amount' => (float) $validated['amount']]
+        );
+
+        $back = route($rolePrefix.'.show', ['page' => 'slary']).'?'.http_build_query([
+            'salary_date' => $date,
+        ]);
+
+        return redirect()
+            ->to($back)
+            ->with('status', 'Salary amount saved successfully.');
+    }
+
+    private function salaryAmountLookupForReportDate(string $reportDate): ?float
+    {
+        $value = SalaryAmount::query()
+            ->whereDate('date', '<=', $reportDate)
+            ->orderByDesc('date')
+            ->value('amount');
+
+        if ($value !== null) {
+            return (float) $value;
+        }
+
+        $latestOverall = SalaryAmount::query()
+            ->orderByDesc('date')
+            ->value('amount');
+
+        return $latestOverall !== null ? (float) $latestOverall : null;
     }
 
     private function updateRoleOilRecord(Request $request, OilRecord $oilRecord, string $rolePrefix): RedirectResponse
