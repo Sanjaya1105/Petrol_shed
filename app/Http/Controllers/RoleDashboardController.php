@@ -775,6 +775,13 @@ class RoleDashboardController extends Controller
                             ELSE 5
                         END
                     ")
+                    ->orderByRaw("
+                        CASE
+                            WHEN LOWER(REPLACE(REPLACE(category.category, '-', ''), ' ', '')) = 'petrol'
+                            THEN CAST(TRIM(SUBSTRING_INDEX(pumps.pump_name, '-', -1)) AS UNSIGNED)
+                            ELSE 0
+                        END
+                    ")
                     ->orderBy('pumps.pump_name');
             } else {
                 $pumpQuery->orderBy('id');
