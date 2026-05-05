@@ -1046,6 +1046,8 @@ class RoleDashboardController extends Controller
         $cashRecExistingTotal = null;
         $cashRecHistoryDate = null;
         $cashRecRecords = collect();
+        $checksHistoryDate = null;
+        $checksHistoryRecords = collect();
         $companies = collect();
         $billStaffOptions = collect();
         $billCompanyOptions = collect();
@@ -1055,6 +1057,7 @@ class RoleDashboardController extends Controller
             $cashRecDateMax = $today->toDateString();
             $cashRecDate = $cashRecDateMax;
             $cashRecHistoryDate = $today->copy()->subDay()->toDateString();
+            $checksHistoryDate = $today->toDateString();
 
             $picked = $request->query('cash_date');
             if (is_string($picked) && $picked !== '') {
@@ -1076,6 +1079,14 @@ class RoleDashboardController extends Controller
                     }
                 } catch (\Throwable) {
                     // keep default (yesterday)
+                }
+            }
+            $pickedChecksHistory = $request->query('checks_history_date');
+            if (is_string($pickedChecksHistory) && $pickedChecksHistory !== '') {
+                try {
+                    $checksHistoryDate = Carbon::parse($pickedChecksHistory)->toDateString();
+                } catch (\Throwable) {
+                    // keep default (today)
                 }
             }
             $cashRecStaffOptions = Staff::query()
@@ -1127,6 +1138,11 @@ class RoleDashboardController extends Controller
             $cashRecRecords = $cashRecQuery
                 ->paginate(5, ['*'], 'cash_history_page')
                 ->withQueryString();
+            $checksHistoryRecords = Check::query()
+                ->with('staff')
+                ->whereDate('check_date', $checksHistoryDate)
+                ->orderByDesc('id')
+                ->get();
         }
         if ($request !== null && in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'bill') {
             $companies = Company::query()->orderBy('company_name')->orderBy('id')->get();
@@ -1178,6 +1194,8 @@ class RoleDashboardController extends Controller
             'cashRecExistingTotal' => $cashRecExistingTotal,
             'cashRecHistoryDate' => $cashRecHistoryDate,
             'cashRecRecords' => $cashRecRecords,
+            'checksHistoryDate' => $checksHistoryDate,
+            'checksHistoryRecords' => $checksHistoryRecords,
             'companies' => $companies,
             'billStaffOptions' => $billStaffOptions,
             'billCompanyOptions' => $billCompanyOptions,

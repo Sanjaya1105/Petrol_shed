@@ -1649,13 +1649,22 @@
             <div class="space-y-3">
                 <div class="flex items-center justify-between gap-3">
                     <h3 class="text-sm font-semibold">Cash</h3>
-                    <button
-                        type="button"
-                        id="open_checks_modal"
-                        class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                        Checks
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            id="open_show_checks_modal"
+                            class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                        >
+                            Show Checks
+                        </button>
+                        <button
+                            type="button"
+                            id="open_checks_modal"
+                            class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                        >
+                            Checks
+                        </button>
+                    </div>
                 </div>
                 @php
                     $cashDate = $cashRecDate ?? now()->toDateString();
@@ -1955,16 +1964,78 @@
                     </div>
                 </form>
             </div>
+            <div id="show_checks_modal_overlay" class="fixed inset-0 bg-black/40 hidden z-40"></div>
+            <div id="show_checks_modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+                <div class="w-full max-w-4xl rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#161615] shadow-lg">
+                    <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+                        <h4 class="text-base font-semibold">Cheques</h4>
+                        <button
+                            type="button"
+                            id="close_show_checks_modal"
+                            class="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                            aria-label="Close show cheques modal"
+                        >
+                            X
+                        </button>
+                    </div>
+                    <div class="px-4 py-4 space-y-4">
+                        <div class="max-w-xs">
+                            <label for="checks_history_date" class="block text-sm font-medium mb-1">Date</label>
+                            <input
+                                type="date"
+                                id="checks_history_date"
+                                value="{{ $checksHistoryDate ?? now()->toDateString() }}"
+                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                            >
+                        </div>
+                        <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                            <table class="min-w-full overflow-hidden text-sm">
+                                <thead class="bg-gray-100 dark:bg-gray-800">
+                                    <tr>
+                                        <th class="text-left px-3 py-2 font-semibold">Date</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Check Date</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Company</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Staff</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse (($checksHistoryRecords ?? collect()) as $checkRow)
+                                        <tr class="border-t border-gray-200 dark:border-gray-700">
+                                            <td class="px-3 py-2 align-top">{{ \Illuminate\Support\Carbon::parse($checkRow->date)->toDateString() }}</td>
+                                            <td class="px-3 py-2 align-top">{{ \Illuminate\Support\Carbon::parse($checkRow->check_date)->toDateString() }}</td>
+                                            <td class="px-3 py-2 align-top">{{ $checkRow->company }}</td>
+                                            <td class="px-3 py-2 align-top">{{ $checkRow->staff?->name ?? '—' }}</td>
+                                            <td class="px-3 py-2 align-top">{{ number_format((float) ($checkRow->amount ?? 0), 3) }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr class="border-t border-gray-200 dark:border-gray-700">
+                                            <td colspan="5" class="px-3 py-3 text-sm text-[#706f6c] dark:text-[#A1A09A]">
+                                                No checks found for this check date.
+                                            </td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <script>
                 (function () {
                     const openChecksModalBtn = document.getElementById('open_checks_modal');
                     const checksModal = document.getElementById('checks_modal');
                     const checksModalOverlay = document.getElementById('checks_modal_overlay');
                     const closeChecksModalBtn = document.getElementById('close_checks_modal');
+                    const openShowChecksModalBtn = document.getElementById('open_show_checks_modal');
+                    const showChecksModal = document.getElementById('show_checks_modal');
+                    const showChecksModalOverlay = document.getElementById('show_checks_modal_overlay');
+                    const closeShowChecksModalBtn = document.getElementById('close_show_checks_modal');
                     const dateInput = document.getElementById('cash_rec_date');
                     const staffSelect = document.getElementById('cash_rec_staff');
                     const categorySelect = document.getElementById('cash_rec_category');
                     const historyDateInput = document.getElementById('cash_history_date');
+                    const checksHistoryDateInput = document.getElementById('checks_history_date');
                     const checksDateInput = document.getElementById('checks_date');
                     const checkDateInput = document.getElementById('check_date');
                     const cashTableBody = document.getElementById('cash_rec_table_body');
@@ -1988,6 +2059,19 @@
                         checksModal.classList.remove('flex');
                         checksModalOverlay.classList.add('hidden');
                     };
+                    const openShowChecksModal = () => {
+                        if (!showChecksModal || !showChecksModalOverlay) return;
+                        showChecksModal.classList.remove('hidden');
+                        showChecksModal.classList.add('flex');
+                        showChecksModalOverlay.classList.remove('hidden');
+                    };
+
+                    const closeShowChecksModal = () => {
+                        if (!showChecksModal || !showChecksModalOverlay) return;
+                        showChecksModal.classList.add('hidden');
+                        showChecksModal.classList.remove('flex');
+                        showChecksModalOverlay.classList.add('hidden');
+                    };
 
                     if (openChecksModalBtn) {
                         openChecksModalBtn.addEventListener('click', openChecksModal);
@@ -1998,9 +2082,22 @@
                     if (checksModalOverlay) {
                         checksModalOverlay.addEventListener('click', closeChecksModal);
                     }
+                    if (openShowChecksModalBtn) {
+                        openShowChecksModalBtn.addEventListener('click', openShowChecksModal);
+                    }
+                    if (closeShowChecksModalBtn) {
+                        closeShowChecksModalBtn.addEventListener('click', closeShowChecksModal);
+                    }
+                    if (showChecksModalOverlay) {
+                        showChecksModalOverlay.addEventListener('click', closeShowChecksModal);
+                    }
+                    if (new URLSearchParams(window.location.search).has('checks_history_date')) {
+                        openShowChecksModal();
+                    }
                     document.addEventListener('keydown', (event) => {
                         if (event.key === 'Escape') {
                             closeChecksModal();
+                            closeShowChecksModal();
                         }
                     });
 
@@ -2063,8 +2160,31 @@
                     };
                     openDatePicker(dateInput);
                     openDatePicker(historyDateInput);
+                    openDatePicker(checksHistoryDateInput);
                     openDatePicker(checksDateInput);
                     openDatePicker(checkDateInput);
+
+                    if (checksHistoryDateInput) {
+                        checksHistoryDateInput.addEventListener('change', () => {
+                            const url = new URL(baseUrl, window.location.origin);
+                            if (dateInput && dateInput.value) {
+                                url.searchParams.set('cash_date', dateInput.value);
+                            }
+                            if (staffSelect && staffSelect.value) {
+                                url.searchParams.set('cash_staff_id', staffSelect.value);
+                            }
+                            if (categorySelect && categorySelect.value) {
+                                url.searchParams.set('cash_category', categorySelect.value);
+                            }
+                            if (historyDateInput && historyDateInput.value) {
+                                url.searchParams.set('cash_history_date', historyDateInput.value);
+                            }
+                            if (checksHistoryDateInput.value) {
+                                url.searchParams.set('checks_history_date', checksHistoryDateInput.value);
+                            }
+                            window.location.href = url.toString();
+                        });
+                    }
 
                     if (!cashTableBody || !totalCell || !dateCell || !staffCell || !categoryCell || !actionCell || !categorySelect) return;
 
