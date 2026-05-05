@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Bill;
 use App\Models\BillReset;
 use App\Models\CashCollection;
+use App\Models\Check;
 use App\Models\Company;
 use App\Models\Expense;
 use App\Models\GasPrice;
@@ -340,6 +341,16 @@ class RoleDashboardController extends Controller
     public function saveDataEntryCashRec(Request $request): RedirectResponse
     {
         return $this->saveRoleCashRec($request, 'data-entry');
+    }
+
+    public function saveAdminChecks(Request $request): RedirectResponse
+    {
+        return $this->saveRoleChecks($request, 'admin');
+    }
+
+    public function saveDataEntryChecks(Request $request): RedirectResponse
+    {
+        return $this->saveRoleChecks($request, 'data-entry');
     }
 
     public function deleteAdminCashRec(Request $request, CashCollection $cashCollection): RedirectResponse
@@ -968,6 +979,7 @@ class RoleDashboardController extends Controller
         $salesView = 'staff';
         $cashByStaffId = collect();
         $cashCategoryTotalsByStaff = collect();
+        $checksByStaffId = collect();
         $billAmountByStaffId = collect();
         $gasAmountByStaffId = collect();
         $oilAmountByStaffId = collect();
@@ -1002,6 +1014,11 @@ class RoleDashboardController extends Controller
                 ->select('staff_id', DB::raw('SUM(bill_value) as total_bills'))
                 ->groupBy('staff_id')
                 ->pluck('total_bills', 'staff_id');
+            $checksByStaffId = Check::query()
+                ->whereDate('date', $salesReportDate)
+                ->select('staff_id', DB::raw('SUM(amount) as total_checks'))
+                ->groupBy('staff_id')
+                ->pluck('total_checks', 'staff_id');
             $gasAmountByStaffId = $this->gasAmountByStaffForDate($salesReportDate);
             $oilAmountByStaffId = OilRecord::query()
                 ->whereDate('date', $salesReportDate)
@@ -1146,6 +1163,7 @@ class RoleDashboardController extends Controller
             'salesView' => $salesView,
             'cashByStaffId' => $cashByStaffId,
             'cashCategoryTotalsByStaff' => $cashCategoryTotalsByStaff,
+            'checksByStaffId' => $checksByStaffId,
             'billAmountByStaffId' => $billAmountByStaffId,
             'gasAmountByStaffId' => $gasAmountByStaffId,
             'oilAmountByStaffId' => $oilAmountByStaffId,
@@ -1874,6 +1892,34 @@ class RoleDashboardController extends Controller
         return redirect()
             ->to($back)
             ->with('status', 'Cash record saved successfully.');
+    }
+
+    private function saveRoleChecks(Request $request, string $rolePrefix): RedirectResponse
+    {
+        $validated = $request->validate([
+            'checks_date' => ['required', 'date', 'before_or_equal:today'],
+            'checks_company' => ['required', 'string', 'max:255'],
+            'check_date' => ['required', 'date'],
+            'checks_staff_id' => ['required', 'integer', Rule::exists('staff', 'id')->where('is_active', true)],
+            'checks_amount' => ['required', 'numeric', 'decimal:0,3', 'min:0'],
+        ]);
+
+        Check::query()->create([
+            'date' => Carbon::parse($validated['checks_date'])->toDateString(),
+            'company' => trim((string) $validated['checks_company']),
+            'check_date' => Carbon::parse($validated['check_date'])->toDateString(),
+            'staff_id' => (int) $validated['checks_staff_id'],
+            'amount' => round((float) $validated['checks_amount'], 3),
+        ]);
+
+        $back = route($rolePrefix.'.show', ['page' => 'cash-rec']).'?'.http_build_query([
+            'cash_date' => Carbon::parse($validated['checks_date'])->toDateString(),
+            'cash_staff_id' => (int) $validated['checks_staff_id'],
+        ]);
+
+        return redirect()
+            ->to($back)
+            ->with('status', 'Checques saved successfully.');
     }
 
     private function resolveOilFormDate(Request $request): string

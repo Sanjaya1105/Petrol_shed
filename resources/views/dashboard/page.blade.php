@@ -792,11 +792,12 @@
                                 return strnatcasecmp($nameA, $nameB);
                             })->values();
                             $billAmountByStaffId = $billAmountByStaffId ?? collect();
+                            $checksByStaffId = $checksByStaffId ?? collect();
                             $gasAmountByStaffId = $gasAmountByStaffId ?? collect();
                             $oilAmountByStaffId = $oilAmountByStaffId ?? collect();
                             $expenseAmountByStaffId = $expenseAmountByStaffId ?? collect();
                             $salaryAmountForSalesDate = $salaryAmountForSalesDate ?? null;
-                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey, $cashByStaffId, $cashCategoryTotalsByStaff, $billAmountByStaffId, $gasAmountByStaffId, $oilAmountByStaffId, $expenseAmountByStaffId, $salaryAmountForSalesDate) {
+                            $staffSaleGroups = $staffGroupKeys->map(function ($key) use ($byStaffKey, $cashByStaffId, $cashCategoryTotalsByStaff, $billAmountByStaffId, $checksByStaffId, $gasAmountByStaffId, $oilAmountByStaffId, $expenseAmountByStaffId, $salaryAmountForSalesDate) {
                                 $rows = $byStaffKey->get($key)->sortBy('pump_name', SORT_NATURAL)->values();
                                 $groupTotal = $rows
                                     ->filter(fn ($r) => $r['line_total'] !== null)
@@ -806,6 +807,7 @@
                                 $visaMasterTotal = null;
                                 $amexTotal = null;
                                 $billAmountTotal = null;
+                                $checksAmountTotal = null;
                                 $gasAmountTotal = null;
                                 $oilAmountTotal = null;
                                 $expenseAmountTotal = null;
@@ -823,6 +825,10 @@
                                     $billAmountTotal = $billAmountByStaffId->get((int) $key);
                                     if ($billAmountTotal === null) {
                                         $billAmountTotal = $billAmountByStaffId->get((string) $key);
+                                    }
+                                    $checksAmountTotal = $checksByStaffId->get((int) $key);
+                                    if ($checksAmountTotal === null) {
+                                        $checksAmountTotal = $checksByStaffId->get((string) $key);
                                     }
                                     $gasAmountTotal = $gasAmountByStaffId->get((int) $key);
                                     if ($gasAmountTotal === null) {
@@ -842,6 +848,7 @@
                                         + (float) ($visaMasterTotal ?? 0)
                                         + (float) ($amexTotal ?? 0)
                                         + (float) ($billAmountTotal ?? 0)
+                                        + (float) ($checksAmountTotal ?? 0)
                                         - (float) ($gasAmountTotal ?? 0)
                                         - (float) ($oilAmountTotal ?? 0)
                                         + (float) ($salaryAmountForSalesDate ?? 0)
@@ -857,6 +864,7 @@
                                     'visa_master_total' => number_format((float) ($visaMasterTotal ?? 0), 2),
                                     'amex_total' => number_format((float) ($amexTotal ?? 0), 2),
                                     'bill_amount' => number_format((float) ($billAmountTotal ?? 0), 2),
+                                    'checks_amount' => number_format((float) ($checksAmountTotal ?? 0), 2),
                                     'gas_amount' => number_format((float) ($gasAmountTotal ?? 0), 2),
                                     'oil_amount' => number_format((float) ($oilAmountTotal ?? 0), 2),
                                     'expense_amount' => number_format((float) ($expenseAmountTotal ?? 0), 2),
@@ -919,6 +927,7 @@
                                         <th class="text-left px-3 py-2 font-semibold">Visa/Master</th>
                                         <th class="text-left px-3 py-2 font-semibold">Amex</th>
                                         <th class="text-left px-3 py-2 font-semibold">Bill amount</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Cheques</th>
                                         <th class="text-left px-3 py-2 font-semibold">Gas Amount</th>
                                         <th class="text-left px-3 py-2 font-semibold">Oil Amount</th>
                                         <th class="text-left px-3 py-2 font-semibold">Expense</th>
@@ -958,6 +967,7 @@
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['visa_master_total'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['amex_total'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['bill_amount'] }}</td>
+                                                    <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['checks_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['gas_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['oil_amount'] }}</td>
                                                     <td class="px-3 py-2 align-top font-semibold align-middle" rowspan="{{ $group['rows']->count() }}">{{ $group['expense_amount'] }}</td>
@@ -973,7 +983,7 @@
                                         <tr>
                                             <td class="px-3 py-2 font-semibold text-right" colspan="7">Grand total</td>
                                             <td class="px-3 py-2 font-semibold">{{ number_format((float) $staffReportGrandTotal, 2) }}</td>
-                                            <td class="px-3 py-2" colspan="9"></td>
+                                            <td class="px-3 py-2" colspan="10"></td>
                                         </tr>
                                     </tfoot>
                                 @endif
@@ -1637,7 +1647,16 @@
             </script>
         @elseif (in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'cash-rec')
             <div class="space-y-3">
-                <h3 class="text-sm font-semibold">Cash</h3>
+                <div class="flex items-center justify-between gap-3">
+                    <h3 class="text-sm font-semibold">Cash</h3>
+                    <button
+                        type="button"
+                        id="open_checks_modal"
+                        class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                        Checks
+                    </button>
+                </div>
                 @php
                     $cashDate = $cashRecDate ?? now()->toDateString();
                     $cashDateMax = $cashRecDateMax ?? now()->toDateString();
@@ -1647,6 +1666,7 @@
                     $selectedCashStaff = (string) request()->query('cash_staff_id', '');
                     $cashRecListUrl = route($navPrefix.'.show', ['page' => 'cash-rec']);
                     $cashRecSaveUrl = route($navPrefix.'.cash-rec.save');
+                    $checksSaveUrl = route($navPrefix.'.checks.save');
                     $cashRecBaseUrl = route($navPrefix.'.show', ['page' => 'cash-rec']);
                     $cashPrefillValues = collect($cashRecExistingValues ?? [])
                         ->map(fn ($value) => is_array($value) ? (string) ($value['amount'] ?? '') : (string) $value)
@@ -1848,12 +1868,105 @@
                     </div>
                 @endif
             </div>
+            <div id="checks_modal_overlay" class="fixed inset-0 bg-black/40 hidden z-40"></div>
+            <div id="checks_modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+                <form method="post" action="{{ $checksSaveUrl }}" class="w-full max-w-md rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#161615] shadow-lg">
+                    @csrf
+                    <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+                        <h4 class="text-base font-semibold">Checques</h4>
+                        <button
+                            type="button"
+                            id="close_checks_modal"
+                            class="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                            aria-label="Close checques modal"
+                        >
+                            X
+                        </button>
+                    </div>
+                    <div class="px-4 py-4 text-sm text-[#706f6c] dark:text-[#A1A09A]">
+                        <label for="checks_date" class="block text-sm font-medium mb-1 text-[#1b1b18] dark:text-[#EDEDEC]">
+                            Date
+                        </label>
+                        <input
+                            type="date"
+                            id="checks_date"
+                            name="checks_date"
+                            max="{{ now()->toDateString() }}"
+                            required
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                        <label for="checks_company" class="block text-sm font-medium mt-3 mb-1 text-[#1b1b18] dark:text-[#EDEDEC]">
+                            Company
+                        </label>
+                        <input
+                            type="text"
+                            id="checks_company"
+                            name="checks_company"
+                            placeholder="Enter company"
+                            required
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                        <label for="check_date" class="block text-sm font-medium mt-3 mb-1 text-[#1b1b18] dark:text-[#EDEDEC]">
+                            Check Date
+                        </label>
+                        <input
+                            type="date"
+                            id="check_date"
+                            name="check_date"
+                            required
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                        <label for="checks_staff_id" class="block text-sm font-medium mt-3 mb-1 text-[#1b1b18] dark:text-[#EDEDEC]">
+                            Staff
+                        </label>
+                        <select
+                            id="checks_staff_id"
+                            name="checks_staff_id"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                            {{ $cashStaffOptions->isEmpty() ? 'disabled' : '' }}
+                            required
+                        >
+                            <option value="">Select staff</option>
+                            @foreach ($cashStaffOptions as $staffOption)
+                                <option value="{{ $staffOption->id }}">
+                                    {{ ($staffOption->is_active ?? true) ? $staffOption->name : $staffOption->name.' (Removed)' }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <label for="checks_amount" class="block text-sm font-medium mt-3 mb-1 text-[#1b1b18] dark:text-[#EDEDEC]">
+                            Amount
+                        </label>
+                        <input
+                            type="text"
+                            id="checks_amount"
+                            name="checks_amount"
+                            inputmode="decimal"
+                            placeholder="Enter amount"
+                            pattern="^\d+(\.\d{1,3})?$"
+                            title="Enter a valid amount (up to 3 decimal places)"
+                            required
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                        <div class="mt-4 flex justify-end">
+                            <button type="submit" class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
             <script>
                 (function () {
+                    const openChecksModalBtn = document.getElementById('open_checks_modal');
+                    const checksModal = document.getElementById('checks_modal');
+                    const checksModalOverlay = document.getElementById('checks_modal_overlay');
+                    const closeChecksModalBtn = document.getElementById('close_checks_modal');
                     const dateInput = document.getElementById('cash_rec_date');
                     const staffSelect = document.getElementById('cash_rec_staff');
                     const categorySelect = document.getElementById('cash_rec_category');
                     const historyDateInput = document.getElementById('cash_history_date');
+                    const checksDateInput = document.getElementById('checks_date');
+                    const checkDateInput = document.getElementById('check_date');
                     const cashTableBody = document.getElementById('cash_rec_table_body');
                     const totalCell = document.getElementById('cash_rec_total_cell');
                     const dateCell = dateInput?.closest('td');
@@ -1861,6 +1974,36 @@
                     const categoryCell = document.getElementById('cash_rec_category_cell');
                     const actionCell = document.getElementById('cash_rec_action_cell');
                     const baseUrl = @json($cashRecListUrl);
+
+                    const openChecksModal = () => {
+                        if (!checksModal || !checksModalOverlay) return;
+                        checksModal.classList.remove('hidden');
+                        checksModal.classList.add('flex');
+                        checksModalOverlay.classList.remove('hidden');
+                    };
+
+                    const closeChecksModal = () => {
+                        if (!checksModal || !checksModalOverlay) return;
+                        checksModal.classList.add('hidden');
+                        checksModal.classList.remove('flex');
+                        checksModalOverlay.classList.add('hidden');
+                    };
+
+                    if (openChecksModalBtn) {
+                        openChecksModalBtn.addEventListener('click', openChecksModal);
+                    }
+                    if (closeChecksModalBtn) {
+                        closeChecksModalBtn.addEventListener('click', closeChecksModal);
+                    }
+                    if (checksModalOverlay) {
+                        checksModalOverlay.addEventListener('click', closeChecksModal);
+                    }
+                    document.addEventListener('keydown', (event) => {
+                        if (event.key === 'Escape') {
+                            closeChecksModal();
+                        }
+                    });
+
                     if (!dateInput) return;
 
                     const buildUrl = () => {
@@ -1920,6 +2063,8 @@
                     };
                     openDatePicker(dateInput);
                     openDatePicker(historyDateInput);
+                    openDatePicker(checksDateInput);
+                    openDatePicker(checkDateInput);
 
                     if (!cashTableBody || !totalCell || !dateCell || !staffCell || !categoryCell || !actionCell || !categorySelect) return;
 
