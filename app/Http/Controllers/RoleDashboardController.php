@@ -353,6 +353,16 @@ class RoleDashboardController extends Controller
         return $this->saveRoleChecks($request, 'data-entry');
     }
 
+    public function deleteAdminChecks(Request $request, Check $check): RedirectResponse
+    {
+        return $this->deleteRoleChecks($request, $check, 'admin');
+    }
+
+    public function deleteDataEntryChecks(Request $request, Check $check): RedirectResponse
+    {
+        return $this->deleteRoleChecks($request, $check, 'data-entry');
+    }
+
     public function deleteAdminCashRec(Request $request, CashCollection $cashCollection): RedirectResponse
     {
         return $this->deleteRoleCashRec($request, $cashCollection, 'admin');
@@ -1915,6 +1925,7 @@ class RoleDashboardController extends Controller
     private function saveRoleChecks(Request $request, string $rolePrefix): RedirectResponse
     {
         $validated = $request->validate([
+            'checks_id' => ['nullable', 'integer', 'exists:checks,id'],
             'checks_date' => ['required', 'date', 'before_or_equal:today'],
             'checks_company' => ['required', 'string', 'max:255'],
             'check_date' => ['required', 'date'],
@@ -1922,22 +1933,60 @@ class RoleDashboardController extends Controller
             'checks_amount' => ['required', 'numeric', 'decimal:0,3', 'min:0'],
         ]);
 
-        Check::query()->create([
+        $checkId = isset($validated['checks_id']) && $validated['checks_id'] !== ''
+            ? (int) $validated['checks_id']
+            : null;
+
+        $payload = [
             'date' => Carbon::parse($validated['checks_date'])->toDateString(),
             'company' => trim((string) $validated['checks_company']),
             'check_date' => Carbon::parse($validated['check_date'])->toDateString(),
             'staff_id' => (int) $validated['checks_staff_id'],
             'amount' => round((float) $validated['checks_amount'], 3),
-        ]);
+        ];
+
+        if ($checkId !== null) {
+            $existing = Check::query()->find($checkId);
+            if ($existing !== null) {
+                $existing->update($payload);
+            } else {
+                Check::query()->create($payload);
+            }
+        } else {
+            Check::query()->create($payload);
+        }
 
         $back = route($rolePrefix.'.show', ['page' => 'cash-rec']).'?'.http_build_query([
             'cash_date' => Carbon::parse($validated['checks_date'])->toDateString(),
             'cash_staff_id' => (int) $validated['checks_staff_id'],
+            'checks_history_date' => Carbon::parse($validated['check_date'])->toDateString(),
         ]);
 
         return redirect()
             ->to($back)
-            ->with('status', 'Checques saved successfully.');
+            ->with('status', $checkId !== null ? 'Cheque updated successfully.' : 'Cheque saved successfully.');
+    }
+
+    private function deleteRoleChecks(Request $request, Check $check, string $rolePrefix): RedirectResponse
+    {
+        $check->delete();
+
+        $query = array_filter([
+            'cash_date' => $request->input('cash_date'),
+            'cash_staff_id' => $request->input('cash_staff_id'),
+            'cash_category' => $request->input('cash_category'),
+            'cash_history_date' => $request->input('cash_history_date'),
+            'checks_history_date' => $request->input('checks_history_date'),
+        ], fn ($v) => is_string($v) ? $v !== '' : $v !== null);
+
+        $back = route($rolePrefix.'.show', ['page' => 'cash-rec']);
+        if (count($query) > 0) {
+            $back .= '?'.http_build_query($query);
+        }
+
+        return redirect()
+            ->to($back)
+            ->with('status', 'Cheque deleted successfully.');
     }
 
     private function resolveOilFormDate(Request $request): string

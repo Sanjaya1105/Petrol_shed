@@ -1655,14 +1655,14 @@
                             id="open_show_checks_modal"
                             class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                         >
-                            Show Checks
+                            Show Cheques
                         </button>
                         <button
                             type="button"
                             id="open_checks_modal"
                             class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                         >
-                            Checks
+                            Cheques
                         </button>
                     </div>
                 </div>
@@ -1882,7 +1882,7 @@
                 <form method="post" action="{{ $checksSaveUrl }}" class="w-full max-w-md rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#161615] shadow-lg">
                     @csrf
                     <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-                        <h4 class="text-base font-semibold">Checques</h4>
+                        <h4 class="text-base font-semibold">Cheque</h4>
                         <button
                             type="button"
                             id="close_checks_modal"
@@ -1896,6 +1896,11 @@
                         <label for="checks_date" class="block text-sm font-medium mb-1 text-[#1b1b18] dark:text-[#EDEDEC]">
                             Date
                         </label>
+                        <input
+                            type="hidden"
+                            id="checks_id"
+                            name="checks_id"
+                        >
                         <input
                             type="date"
                             id="checks_date"
@@ -1916,7 +1921,7 @@
                             class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                         >
                         <label for="check_date" class="block text-sm font-medium mt-3 mb-1 text-[#1b1b18] dark:text-[#EDEDEC]">
-                            Check Date
+                            Cheque Date
                         </label>
                         <input
                             type="date"
@@ -1993,10 +1998,11 @@
                                 <thead class="bg-gray-100 dark:bg-gray-800">
                                     <tr>
                                         <th class="text-left px-3 py-2 font-semibold">Date</th>
-                                        <th class="text-left px-3 py-2 font-semibold">Check Date</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Cheque Date</th>
                                         <th class="text-left px-3 py-2 font-semibold">Company</th>
                                         <th class="text-left px-3 py-2 font-semibold">Staff</th>
                                         <th class="text-left px-3 py-2 font-semibold">Amount</th>
+                                        <th class="text-left px-3 py-2 font-semibold">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -2007,10 +2013,41 @@
                                             <td class="px-3 py-2 align-top">{{ $checkRow->company }}</td>
                                             <td class="px-3 py-2 align-top">{{ $checkRow->staff?->name ?? '—' }}</td>
                                             <td class="px-3 py-2 align-top">{{ number_format((float) ($checkRow->amount ?? 0), 3) }}</td>
+                                            <td class="px-3 py-2 align-top">
+                                                <div class="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        class="js-edit-check inline-flex rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
+                                                        data-check-id="{{ $checkRow->id }}"
+                                                        data-date="{{ \Illuminate\Support\Carbon::parse($checkRow->date)->toDateString() }}"
+                                                        data-cheque-date="{{ \Illuminate\Support\Carbon::parse($checkRow->check_date)->toDateString() }}"
+                                                        data-company="{{ $checkRow->company }}"
+                                                        data-staff-id="{{ $checkRow->staff_id }}"
+                                                        data-amount="{{ number_format((float) ($checkRow->amount ?? 0), 3, '.', '') }}"
+                                                    >
+                                                        Update
+                                                    </button>
+                                                    <form method="post" action="{{ route($navPrefix.'.checks.delete', $checkRow) }}" onsubmit="return confirm('Delete this cheque record?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <input type="hidden" name="cash_date" value="{{ $cashDate }}">
+                                                        <input type="hidden" name="cash_staff_id" value="{{ $selectedCashStaff }}">
+                                                        <input type="hidden" name="cash_category" value="{{ $selectedCashCategory }}">
+                                                        <input type="hidden" name="cash_history_date" value="{{ $cashHistoryDate }}">
+                                                        <input type="hidden" name="checks_history_date" value="{{ $checksHistoryDate ?? now()->toDateString() }}">
+                                                        <button
+                                                            type="submit"
+                                                            class="inline-flex rounded-md border border-red-300 text-red-700 dark:border-red-700 dark:text-red-400 px-3 py-1.5 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/30"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
                                         </tr>
                                     @empty
                                         <tr class="border-t border-gray-200 dark:border-gray-700">
-                                            <td colspan="5" class="px-3 py-3 text-sm text-[#706f6c] dark:text-[#A1A09A]">
+                                            <td colspan="6" class="px-3 py-3 text-sm text-[#706f6c] dark:text-[#A1A09A]">
                                                 No checks found for this check date.
                                             </td>
                                         </tr>
@@ -2038,6 +2075,11 @@
                     const checksHistoryDateInput = document.getElementById('checks_history_date');
                     const checksDateInput = document.getElementById('checks_date');
                     const checkDateInput = document.getElementById('check_date');
+                    const checksIdInput = document.getElementById('checks_id');
+                    const checksCompanyInput = document.getElementById('checks_company');
+                    const checksStaffInput = document.getElementById('checks_staff_id');
+                    const checksAmountInput = document.getElementById('checks_amount');
+                    const editCheckButtons = Array.from(document.querySelectorAll('.js-edit-check'));
                     const cashTableBody = document.getElementById('cash_rec_table_body');
                     const totalCell = document.getElementById('cash_rec_total_cell');
                     const dateCell = dateInput?.closest('td');
@@ -2074,7 +2116,10 @@
                     };
 
                     if (openChecksModalBtn) {
-                        openChecksModalBtn.addEventListener('click', openChecksModal);
+                        openChecksModalBtn.addEventListener('click', () => {
+                            if (checksIdInput) checksIdInput.value = '';
+                            openChecksModal();
+                        });
                     }
                     if (closeChecksModalBtn) {
                         closeChecksModalBtn.addEventListener('click', closeChecksModal);
@@ -2185,6 +2230,18 @@
                             window.location.href = url.toString();
                         });
                     }
+                    editCheckButtons.forEach((button) => {
+                        button.addEventListener('click', () => {
+                            if (checksIdInput) checksIdInput.value = button.dataset.checkId ?? '';
+                            if (checksDateInput) checksDateInput.value = button.dataset.date ?? '';
+                            if (checkDateInput) checkDateInput.value = button.dataset.chequeDate ?? '';
+                            if (checksCompanyInput) checksCompanyInput.value = button.dataset.company ?? '';
+                            if (checksStaffInput) checksStaffInput.value = button.dataset.staffId ?? '';
+                            if (checksAmountInput) checksAmountInput.value = button.dataset.amount ?? '';
+                            closeShowChecksModal();
+                            openChecksModal();
+                        });
+                    });
 
                     if (!cashTableBody || !totalCell || !dateCell || !staffCell || !categoryCell || !actionCell || !categorySelect) return;
 

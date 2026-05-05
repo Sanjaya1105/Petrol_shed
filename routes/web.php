@@ -50,6 +50,7 @@ Route::middleware(['auth', 'role:2'])->prefix('admin')->name('admin.')->group(fu
     Route::post('/tanks/{tank}/restock', [RoleDashboardController::class, 'restockAdminTank'])->name('tanks.restock');
     Route::post('/cash-rec', [RoleDashboardController::class, 'saveAdminCashRec'])->name('cash-rec.save');
     Route::post('/checks', [RoleDashboardController::class, 'saveAdminChecks'])->name('checks.save');
+    Route::delete('/checks/{check}', [RoleDashboardController::class, 'deleteAdminChecks'])->name('checks.delete');
     Route::delete('/cash-rec/{cashCollection}', [RoleDashboardController::class, 'deleteAdminCashRec'])->name('cash-rec.delete');
     Route::post('/bill/company', [RoleDashboardController::class, 'saveAdminCompany'])->name('bill.company.save');
     Route::put('/bill/company/{company}', [RoleDashboardController::class, 'updateAdminCompany'])->name('bill.company.update');
@@ -79,6 +80,7 @@ Route::middleware(['auth', 'role:3'])->prefix('data-entry')->name('data-entry.')
     Route::get('/pumps/{pump}/sale-prefill', [RoleDashboardController::class, 'prefillDataEntryPumpSale'])->name('pumps.sale.prefill');
     Route::post('/cash-rec', [RoleDashboardController::class, 'saveDataEntryCashRec'])->name('cash-rec.save');
     Route::post('/checks', [RoleDashboardController::class, 'saveDataEntryChecks'])->name('checks.save');
+    Route::delete('/checks/{check}', [RoleDashboardController::class, 'deleteDataEntryChecks'])->name('checks.delete');
     Route::delete('/cash-rec/{cashCollection}', [RoleDashboardController::class, 'deleteDataEntryCashRec'])->name('cash-rec.delete');
     Route::post('/bill/company', [RoleDashboardController::class, 'saveDataEntryCompany'])->name('bill.company.save');
     Route::put('/bill/company/{company}', [RoleDashboardController::class, 'updateDataEntryCompany'])->name('bill.company.update');
