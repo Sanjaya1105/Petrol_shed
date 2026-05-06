@@ -91,6 +91,11 @@ class RoleDashboardController extends Controller
             ->select('staff_id', DB::raw('SUM(bill_value) as total_bills'))
             ->groupBy('staff_id')
             ->pluck('total_bills', 'staff_id');
+        $checksByStaffId = Check::query()
+            ->whereDate('date', $salesData['salesReportDate'])
+            ->select('staff_id', DB::raw('SUM(amount) as total_checks'))
+            ->groupBy('staff_id')
+            ->pluck('total_checks', 'staff_id');
         $gasAmountByStaffId = $this->gasAmountByStaffForDate($salesData['salesReportDate']);
         $oilAmountByStaffId = OilRecord::query()
             ->whereDate('date', $salesData['salesReportDate'])
@@ -113,6 +118,7 @@ class RoleDashboardController extends Controller
             $cashByStaffId,
             $cashCategoryTotalsByStaff,
             $billAmountByStaffId,
+            $checksByStaffId,
             $gasAmountByStaffId,
             $oilAmountByStaffId,
             $expenseAmountByStaffId,
@@ -1270,7 +1276,7 @@ class RoleDashboardController extends Controller
     /**
      * Staff-sale PDF: one separate table per staff with summary columns.
      *
-     * @return array{groups: list<array{staff: string, lines: list<array<string, string>>, group_total: string, cash_total: string, visa_master_total: string, amex_total: string, bill_amount: string, gas_amount: string, oil_amount: string, expense_amount: string, salary_amount: string, short_total: string}>, grandTotalFormatted: string|null, showGrandTotal: bool}
+     * @return array{groups: list<array{staff: string, lines: list<array<string, string>>, group_total: string, cash_total: string, visa_master_total: string, amex_total: string, bill_amount: string, checks_amount: string, gas_amount: string, oil_amount: string, expense_amount: string, salary_amount: string, short_total: string}>, grandTotalFormatted: string|null, showGrandTotal: bool}
      */
     private function buildStaffSalePdfTablePayload(
         Collection $sales,
@@ -1281,6 +1287,7 @@ class RoleDashboardController extends Controller
         Collection $cashByStaffId,
         Collection $cashCategoryTotalsByStaff,
         Collection $billAmountByStaffId,
+        Collection $checksByStaffId,
         Collection $gasAmountByStaffId,
         Collection $oilAmountByStaffId,
         Collection $expenseAmountByStaffId,
@@ -1402,6 +1409,7 @@ class RoleDashboardController extends Controller
             $visaMasterTotal = null;
             $amexTotal = null;
             $billAmountTotal = null;
+            $checksAmountTotal = null;
             $gasAmountTotal = null;
             $oilAmountTotal = null;
             $expenseAmountTotal = null;
@@ -1420,6 +1428,10 @@ class RoleDashboardController extends Controller
                 if ($billAmountTotal === null) {
                     $billAmountTotal = $billAmountByStaffId->get((string) $key);
                 }
+                $checksAmountTotal = $checksByStaffId->get((int) $key);
+                if ($checksAmountTotal === null) {
+                    $checksAmountTotal = $checksByStaffId->get((string) $key);
+                }
                 $gasAmountTotal = $gasAmountByStaffId->get((int) $key);
                 if ($gasAmountTotal === null) {
                     $gasAmountTotal = $gasAmountByStaffId->get((string) $key);
@@ -1437,6 +1449,7 @@ class RoleDashboardController extends Controller
                     + (float) ($visaMasterTotal ?? 0)
                     + (float) ($amexTotal ?? 0)
                     + (float) ($billAmountTotal ?? 0)
+                    + (float) ($checksAmountTotal ?? 0)
                     - (float) ($gasAmountTotal ?? 0)
                     - (float) ($oilAmountTotal ?? 0)
                     + (float) ($salaryAmountForSalesDate ?? 0)
@@ -1451,6 +1464,7 @@ class RoleDashboardController extends Controller
                 'visa_master_total' => $visaMasterTotal !== null ? number_format((float) $visaMasterTotal, 2) : '-',
                 'amex_total' => $amexTotal !== null ? number_format((float) $amexTotal, 2) : '-',
                 'bill_amount' => $billAmountTotal !== null ? number_format((float) $billAmountTotal, 2) : '-',
+                'checks_amount' => $checksAmountTotal !== null ? number_format((float) $checksAmountTotal, 2) : '-',
                 'gas_amount' => $gasAmountTotal !== null ? number_format((float) $gasAmountTotal, 2) : '-',
                 'oil_amount' => $oilAmountTotal !== null ? number_format((float) $oilAmountTotal, 2) : '-',
                 'expense_amount' => $expenseAmountTotal !== null ? number_format((float) $expenseAmountTotal, 2) : '-',
