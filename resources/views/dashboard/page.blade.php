@@ -2375,6 +2375,11 @@
                 $billStaffOptions = $billStaffOptions ?? collect();
                 $billCompanyOptions = $billCompanyOptions ?? collect();
                 $billCategoryOptions = $billCategoryOptions ?? collect();
+                $billRecords = $billRecords ?? collect();
+                $billRecordsStaffId = $billRecordsStaffId ?? null;
+                $billRecordsDate = $billRecordsDate ?? now()->toDateString();
+                $billRecordsSearched = $billRecordsSearched ?? false;
+                $billRecordsTotal = $billRecords->sum(fn ($row) => (float) $row->bill_value);
             @endphp
             <div class="space-y-3 max-w-2xl">
                 <div class="flex items-center gap-3">
@@ -2478,6 +2483,108 @@
                         </button>
                     </div>
                 </form>
+            </div>
+            <div class="mt-4 space-y-4 bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-5">
+                <h3 class="text-sm font-semibold">Show records</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl">
+                    <div>
+                        <label for="bill_records_staff_id" class="block text-sm font-medium mb-1">Staff</label>
+                        <select id="bill_records_staff_id" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                            <option value="">Select staff</option>
+                            @foreach ($billStaffOptions as $staffOption)
+                                <option value="{{ $staffOption->id }}" @selected((string) ($billRecordsStaffId ?? '') === (string) $staffOption->id)>{{ $staffOption->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label for="bill_records_date" class="block text-sm font-medium mb-1">Date</label>
+                        <div id="bill_records_date_field" class="w-full cursor-pointer rounded-md">
+                            <input
+                                type="date"
+                                id="bill_records_date"
+                                value="{{ $billRecordsDate }}"
+                                max="{{ now()->toDateString() }}"
+                                class="w-full cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0a0a0a] px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <button
+                        type="button"
+                        id="bill_records_find_btn"
+                        class="rounded-md bg-[#1b1b18] dark:bg-[#EDEDEC] text-white dark:text-[#1b1b18] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+                    >
+                        Find
+                    </button>
+                </div>
+                @if ($billRecordsSearched)
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-sm">
+                            <thead class="bg-gray-100 dark:bg-gray-800">
+                                <tr>
+                                    <th class="text-left px-3 py-2 font-semibold">Company</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Invoice #</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Category</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Price</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Liters</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Bill value</th>
+                                    <th class="text-left px-3 py-2 font-semibold">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($billRecords as $billRecord)
+                                    <tr class="border-t border-gray-200 dark:border-gray-700">
+                                        <td class="px-3 py-2 align-top">{{ $billRecord->company?->company_name ?? '—' }}</td>
+                                        <td class="px-3 py-2 align-top">{{ $billRecord->invoice_number }}</td>
+                                        <td class="px-3 py-2 align-top">{{ $billRecord->category?->category ?? '—' }}</td>
+                                        <td class="px-3 py-2 align-top">{{ number_format((float) $billRecord->price, 2) }}</td>
+                                        <td class="px-3 py-2 align-top">{{ number_format((float) $billRecord->liters, 4) }}</td>
+                                        <td class="px-3 py-2 align-top">{{ number_format((float) $billRecord->bill_value, 4) }}</td>
+                                        <td class="px-3 py-2 align-top">
+                                            <form
+                                                method="post"
+                                                action="{{ route($navPrefix.'.bill.delete', $billRecord) }}"
+                                                onsubmit="return confirm('Delete this bill record?');"
+                                            >
+                                                @csrf
+                                                @method('DELETE')
+                                                <input type="hidden" name="bill_records_staff_id" value="{{ $billRecordsStaffId }}">
+                                                <input type="hidden" name="bill_records_date" value="{{ $billRecordsDate }}">
+                                                <input type="hidden" name="bill_records_find" value="1">
+                                                <button
+                                                    type="submit"
+                                                    class="rounded-md border border-red-300 text-red-700 dark:border-red-700 dark:text-red-400 px-3 py-1.5 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/30"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr class="border-t border-gray-200 dark:border-gray-700">
+                                        <td colspan="7" class="px-3 py-3 text-sm text-[#706f6c] dark:text-[#A1A09A]">
+                                            @if ($billRecordsStaffId)
+                                                No bill records for this staff member on the selected date.
+                                            @else
+                                                Please select a staff member, then click Find.
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                            @if ($billRecords->isNotEmpty())
+                                <tfoot class="bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
+                                    <tr>
+                                        <td colspan="5" class="px-3 py-2 text-sm font-semibold text-right">Total</td>
+                                        <td class="px-3 py-2 text-sm font-semibold">{{ number_format((float) $billRecordsTotal, 4) }}</td>
+                                        <td class="px-3 py-2"></td>
+                                    </tr>
+                                </tfoot>
+                            @endif
+                        </table>
+                    </div>
+                @endif
             </div>
             <div id="companies_modal_overlay" class="fixed inset-0 bg-black/40 hidden z-40"></div>
             <div id="companies_modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
@@ -2730,6 +2837,46 @@
                     }
                     if (billValueInput) {
                         billValueInput.addEventListener('input', updateBillLitersFromValue);
+                    }
+
+                    const billRecordsFindBtn = document.getElementById('bill_records_find_btn');
+                    const billRecordsStaffSelect = document.getElementById('bill_records_staff_id');
+                    const billRecordsDateInput = document.getElementById('bill_records_date');
+                    const billRecordsDateField = document.getElementById('bill_records_date_field');
+                    const billPageUrl = @json(route($navPrefix.'.show', ['page' => 'bill']));
+
+                    if (billRecordsDateField && billRecordsDateInput) {
+                        billRecordsDateField.addEventListener('click', () => {
+                            if (typeof billRecordsDateInput.showPicker === 'function') {
+                                try {
+                                    billRecordsDateInput.showPicker();
+                                } catch (_) {
+                                    billRecordsDateInput.focus();
+                                }
+                            } else {
+                                billRecordsDateInput.focus();
+                            }
+                        });
+                    }
+
+                    if (billRecordsFindBtn) {
+                        billRecordsFindBtn.addEventListener('click', () => {
+                            const staffId = billRecordsStaffSelect?.value ?? '';
+                            const date = billRecordsDateInput?.value ?? '';
+                            if (!staffId) {
+                                alert('Please select a staff member.');
+                                return;
+                            }
+                            if (!date) {
+                                alert('Please select a date.');
+                                return;
+                            }
+                            const url = new URL(billPageUrl, window.location.origin);
+                            url.searchParams.set('bill_records_staff_id', staffId);
+                            url.searchParams.set('bill_records_date', date);
+                            url.searchParams.set('bill_records_find', '1');
+                            window.location.href = url.toString();
+                        });
                     }
                 })();
             </script>

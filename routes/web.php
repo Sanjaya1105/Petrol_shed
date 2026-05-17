@@ -58,6 +58,7 @@ Route::middleware(['auth', 'role:2'])->prefix('admin')->name('admin.')->group(fu
     Route::get('/bill/company/{company}/report.pdf', [RoleDashboardController::class, 'downloadAdminCompanyBillsPdf'])->name('bill.company.report');
     Route::post('/bill/company/{company}/settle', [RoleDashboardController::class, 'settleAdminCompany'])->name('bill.company.settle');
     Route::post('/bill', [RoleDashboardController::class, 'saveAdminBill'])->name('bill.save');
+    Route::delete('/bill/{bill}', [RoleDashboardController::class, 'deleteAdminBill'])->name('bill.delete');
     Route::get('/bill/category-price', [RoleDashboardController::class, 'getAdminBillCategoryPrice'])->name('bill.category-price');
     Route::post('/gas/details', [RoleDashboardController::class, 'saveAdminGasDetails'])->name('gas.details.save');
     Route::post('/oil/record', [RoleDashboardController::class, 'saveAdminOilRecord'])->name('oil.record.save');
@@ -88,6 +89,7 @@ Route::middleware(['auth', 'role:3'])->prefix('data-entry')->name('data-entry.')
     Route::get('/bill/company/{company}/report.pdf', [RoleDashboardController::class, 'downloadDataEntryCompanyBillsPdf'])->name('bill.company.report');
     Route::post('/bill/company/{company}/settle', [RoleDashboardController::class, 'settleDataEntryCompany'])->name('bill.company.settle');
     Route::post('/bill', [RoleDashboardController::class, 'saveDataEntryBill'])->name('bill.save');
+    Route::delete('/bill/{bill}', [RoleDashboardController::class, 'deleteDataEntryBill'])->name('bill.delete');
     Route::get('/bill/category-price', [RoleDashboardController::class, 'getDataEntryBillCategoryPrice'])->name('bill.category-price');
     Route::get('/{page}', [RoleDashboardController::class, 'showDataEntry'])
         ->where('page', 'home|categories|pumps|tanks|price|sales|cash-rec|bill')

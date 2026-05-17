@@ -399,6 +399,16 @@ class RoleDashboardController extends Controller
         return $this->saveRoleBill($request, 'data-entry');
     }
 
+    public function deleteAdminBill(Request $request, Bill $bill): RedirectResponse
+    {
+        return $this->deleteRoleBill($request, $bill, 'admin');
+    }
+
+    public function deleteDataEntryBill(Request $request, Bill $bill): RedirectResponse
+    {
+        return $this->deleteRoleBill($request, $bill, 'data-entry');
+    }
+
     public function getAdminBillCategoryPrice(Request $request): JsonResponse
     {
         return $this->getRoleBillCategoryPrice($request);
@@ -1068,6 +1078,10 @@ class RoleDashboardController extends Controller
         $billStaffOptions = collect();
         $billCompanyOptions = collect();
         $billCategoryOptions = collect();
+        $billRecords = collect();
+        $billRecordsStaffId = null;
+        $billRecordsDate = null;
+        $billRecordsSearched = false;
         if ($request !== null && in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'cash-rec') {
             $today = now()->startOfDay();
             $cashRecDateMax = $today->toDateString();
@@ -1161,6 +1175,9 @@ class RoleDashboardController extends Controller
                 ->get();
         }
         if ($request !== null && in_array($navPrefix, ['admin', 'data-entry'], true) && $page === 'bill') {
+            $today = now()->startOfDay();
+            $billRecordsDate = $today->toDateString();
+
             $companies = Company::query()->orderBy('company_name')->orderBy('id')->get();
             $billStaffOptions = Staff::query()
                 ->where('is_active', true)
@@ -1168,6 +1185,42 @@ class RoleDashboardController extends Controller
                 ->get(['id', 'name']);
             $billCompanyOptions = $companies->map(fn ($c) => ['id' => $c->id, 'company_name' => $c->company_name]);
             $billCategoryOptions = Category::query()->orderBy('category')->get(['id', 'category']);
+
+            $pickedBillRecordsDate = $request->query('bill_records_date');
+            if (is_string($pickedBillRecordsDate) && $pickedBillRecordsDate !== '') {
+                try {
+                    $candidate = Carbon::parse($pickedBillRecordsDate)->startOfDay();
+                    if ($candidate->lte($today)) {
+                        $billRecordsDate = $candidate->toDateString();
+                    }
+                } catch (\Throwable) {
+                    // keep default (today)
+                }
+            }
+
+            $pickedBillRecordsStaff = $request->query('bill_records_staff_id');
+            $billRecordsFind = $request->query('bill_records_find');
+            if ($billRecordsFind === '1' || $billRecordsFind === 1) {
+                $billRecordsSearched = true;
+                if (is_string($pickedBillRecordsStaff) && $pickedBillRecordsStaff !== '') {
+                    $staffId = (int) $pickedBillRecordsStaff;
+                    $staffExists = $billStaffOptions->contains(fn ($s) => (int) $s->id === $staffId);
+                    if ($staffExists) {
+                        $billRecordsStaffId = $staffId;
+                        $billRecords = Bill::query()
+                            ->with(['company', 'category'])
+                            ->where('staff_id', $staffId)
+                            ->whereDate('date', $billRecordsDate)
+                            ->orderByDesc('id')
+                            ->get();
+                    }
+                }
+            } elseif (is_string($pickedBillRecordsStaff) && $pickedBillRecordsStaff !== '') {
+                $staffId = (int) $pickedBillRecordsStaff;
+                if ($billStaffOptions->contains(fn ($s) => (int) $s->id === $staffId)) {
+                    $billRecordsStaffId = $staffId;
+                }
+            }
         }
 
         return view('dashboard.page', [
@@ -1216,6 +1269,10 @@ class RoleDashboardController extends Controller
             'billStaffOptions' => $billStaffOptions,
             'billCompanyOptions' => $billCompanyOptions,
             'billCategoryOptions' => $billCategoryOptions,
+            'billRecords' => $billRecords,
+            'billRecordsStaffId' => $billRecordsStaffId,
+            'billRecordsDate' => $billRecordsDate,
+            'billRecordsSearched' => $billRecordsSearched,
             'homePriceDate' => $homePriceDate,
             'homeCategoryPriceRows' => $homeCategoryPriceRows,
             'homeStaffRows' => $homeStaffRows,
@@ -2374,6 +2431,26 @@ class RoleDashboardController extends Controller
         return redirect()
             ->route($rolePrefix.'.show', ['page' => 'bill'])
             ->with('status', 'Bill saved successfully.');
+    }
+
+    private function deleteRoleBill(Request $request, Bill $bill, string $rolePrefix): RedirectResponse
+    {
+        $bill->delete();
+
+        $query = array_filter([
+            'bill_records_staff_id' => $request->input('bill_records_staff_id'),
+            'bill_records_date' => $request->input('bill_records_date'),
+            'bill_records_find' => $request->input('bill_records_find'),
+        ], fn ($v) => is_string($v) ? $v !== '' : $v !== null);
+
+        $back = route($rolePrefix.'.show', ['page' => 'bill']);
+        if (count($query) > 0) {
+            $back .= '?'.http_build_query($query);
+        }
+
+        return redirect()
+            ->to($back)
+            ->with('status', 'Bill record deleted successfully.');
     }
 
     private function updateRoleCompany(Request $request, Company $company, string $rolePrefix): RedirectResponse
